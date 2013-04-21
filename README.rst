@@ -132,8 +132,73 @@ This is not specific to simultaneous multi-thread profiling: profiling a single
 thread of a multi-threaded application will also be polluted by time spent in
 other threads.
 
+Example (lines are reported as taking longer to execute when profiled along
+with another thread - although the other thread is not profiled)::
+
+  $ ./ppsinglethread.py
+  Total duration: 1.00009s
+  ./ppsinglethread.py
+  Line #|      Hits|         Time| Time per hit|      %|Source code
+  ------+----------+-------------+-------------+-------+-----------
+       1|         0|            0|            0|  0.00%|#!/usr/bin/env python
+       2|         0|            0|            0|  0.00%|import threading
+       3|         0|            0|            0|  0.00%|import pprofile
+       4|         0|            0|            0|  0.00%|import time
+       5|         0|            0|            0|  0.00%|import sys
+       6|         0|            0|            0|  0.00%|
+       7|         0|            0|            0|  0.00%|def func():
+       8|         0|            0|            0|  0.00%|  # Busy loop, so context switches happe, so context switches happenn
+       9|         1|  5.96046e-06|  5.96046e-06|  0.00%|  end = time.time() + 1
+      10|    141331|     0.513656|  3.63442e-06| 51.36%|  while time.time() < end:
+      11|    141330|     0.486344|   3.4412e-06| 48.63%|    pass
+      12|         0|            0|            0|  0.00%|
+      13|         0|            0|            0|  0.00%|# Single-treaded run
+      14|         0|            0|            0|  0.00%|prof = pprofile.Profile()
+      15|         0|            0|            0|  0.00%|with prof:
+      16|         0|            0|            0|  0.00%|  func()
+      17|         0|            0|            0|  0.00%|prof.annotate(sys.stdout, __file__)
+      18|         0|            0|            0|  0.00%|
+      19|         0|            0|            0|  0.00%|# Dual-threaded run
+      20|         0|            0|            0|  0.00%|t1 = threading.Thread(target=func)
+      21|         0|            0|            0|  0.00%|prof = pprofile.Profile()
+      22|         0|            0|            0|  0.00%|with prof:
+      23|         0|            0|            0|  0.00%|  t1.start()
+      24|         0|            0|            0|  0.00%|  func()
+      25|         0|            0|            0|  0.00%|  t1.join()
+      26|         0|            0|            0|  0.00%|prof.annotate(sys.stdout, __file__)
+  Total duration: 1.03361s
+  ./ppsinglethread.py
+  Line #|      Hits|         Time| Time per hit|      %|Source code
+  ------+----------+-------------+-------------+-------+-----------
+  [...]
+       9|         1|   3.8147e-06|   3.8147e-06|  0.00%|  end = time.time() + 1
+      10|     59771|     0.487474|   8.1557e-06| 47.16%|  while time.time() < end:
+      11|     59770|     0.512529|  8.57502e-06| 49.59%|    pass
+  [...]
+
 This also means that the sum of the percentage of all lines can exceed 100%. It
 can reach the number of concurrent threads (200% with 2 threads being busy for
 the whole profiled executiong time, etc).
+
+Example with 3 threads::
+
+  $ ./pprofile.py ppthread.py
+  Total duration: 1.00541s
+  ppthread.py
+  Line #|      Hits|         Time| Time per hit|      %|Source code
+  ------+----------+-------------+-------------+-------+-----------
+       1|         1|  6.19888e-06|  6.19888e-06|  0.00%|import threading
+       2|         1|  1.50204e-05|  1.50204e-05|  0.00%|import time
+       3|         0|            0|            0|  0.00%|
+       4|         1|   3.8147e-06|   3.8147e-06|  0.00%|def func():
+       5|         3|      3.00359|       1.0012|298.74%|  time.sleep(1)
+       6|         0|            0|            0|  0.00%|
+       7|         1|  1.40667e-05|  1.40667e-05|  0.00%|t1 = threading.Thread(target=func)
+       8|         1|  1.09673e-05|  1.09673e-05|  0.00%|t2 = threading.Thread(target=func)
+       9|         1|  2.88486e-05|  2.88486e-05|  0.00%|t1.start()
+      10|         1|  4.69685e-05|  4.69685e-05|  0.00%|t2.start()
+      11|         1|  5.79357e-05|  5.79357e-05|  0.01%|func()
+      12|         1|  5.67436e-05|  5.67436e-05|  0.01%|t1.join()
+      13|         1|  3.88622e-05|  3.88622e-05|  0.00%|t2.join()
 
 .. _line_profiler: https://bitbucket.org/robertkern/line_profiler
