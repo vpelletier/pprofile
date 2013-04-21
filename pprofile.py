@@ -159,7 +159,8 @@ class Profile(object):
     def _global_trace(self, frame, event, arg):
         local_trace = self._local_trace
         if local_trace is not None:
-            self.stack.append([time(), None, None])
+            now = time()
+            self.stack.append([now, frame.f_lineno, now])
             self.discount_stack.append(0)
         return local_trace
 
