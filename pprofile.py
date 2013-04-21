@@ -135,10 +135,8 @@ class Profile(object):
 
     def _local_trace(self, frame, event, arg):
         if event == 'line' or event == 'return':
-            # Access stack before getting event_time, as it may initialise the
-            # stack with current time.
-            stack = self.stack
             event_time = time()
+            stack = self.stack
             try:
                 call_time, old_line, old_time = stack.pop()
             except IndexError:
