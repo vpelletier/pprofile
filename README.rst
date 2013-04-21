@@ -121,9 +121,9 @@ Sample output (threading.py removed from output)::
 Thread-aware profiling
 ======================
 
-ThreadProfile class provides the same features are Profile, but propagates
-tracing to `threading.Thread` threads started after profiling is enabled using
-`threading.settrace`.
+ThreadProfile class provides the same features are Profile, but uses
+`threading.settrace` to propagate tracing to `threading.Thread` threads started
+after profiling is enabled.
 
 Limitations
 -----------
