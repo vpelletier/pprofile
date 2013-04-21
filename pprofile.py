@@ -49,7 +49,10 @@ class LocalDescriptor(threading.local):
         setattr(self, str(id(instance)), value)
 
     def __delete__(self, instance):
-        delattr(self, str(id(instance)))
+        try:
+            delattr(self, str(id(instance)))
+        except AttributeError:
+            self.func
 
 _ANNOTATE_HEADER = '%6s|%10s|%13s|%13s|%7s|Source code' % (
     'Line #', 'Hits', 'Time', 'Time per hit', '%')
