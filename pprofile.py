@@ -22,6 +22,9 @@ class _FileTiming(object):
     def getStatsFor(self, line):
         return self.line_dict.get(line, (0, 0))
 
+    def getTotalTime(self):
+        return sum(x[1] for x in self.line_dict.itervalues())
+
 class LocalDescriptor(threading.local):
     """
     Implementation of descriptor API for thread-local properties.
@@ -207,18 +210,22 @@ class Profile(object):
             If provided, dump stats for given source file(s) only.
             By default, list for all known files.
         """
+        file_dict = self.file_dict
         if filename is None:
-            filename = sorted(self.getFilenameSet())
+            filename = sorted(self.getFilenameSet(), reverse=True,
+                key=lambda x: file_dict[x].getTotalTime())
         elif isinstance(filename, basestring):
             filename = [filename]
-        file_dict = self.file_dict
         if not file_dict:
             print >> out, '(no measure)'
         total_time = self.total_time
         print >> out, 'Total duration: %gs' % total_time
         for name in filename:
             file_timing = file_dict[name]
+            file_total_time = file_timing.getTotalTime()
             print >> out, name
+            print >> out, 'File duration: %gs (%.2f%%)' % (file_total_time,
+                file_total_time * 100 / total_time)
             print >> out, _ANNOTATE_HEADER
             print >> out, _ANNOTATE_HORIZONTAL_LINE
             lineno = 0
