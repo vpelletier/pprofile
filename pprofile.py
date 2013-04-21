@@ -147,12 +147,16 @@ class Profile(object):
         self.disable()
 
     def _traceEvent(self, frame, event):
-      print >> sys.stderr, '%10.6f%s%s %s:%s %s' % (
+      f_code = frame.f_code
+      lineno = frame.f_lineno
+      print >> sys.stderr, '%10.6f%s%s %s:%s %s+%s %s' % (
           time() - self.enabled_start,
           ' ' * len(self.stack),
           event,
-          frame.f_code.co_filename,
-          frame.f_lineno,
+          f_code.co_filename,
+          lineno,
+          f_code.co_name,
+          lineno - f_code.co_firstlineno,
           self.discount_stack[-1],
       )
 
