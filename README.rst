@@ -33,11 +33,16 @@ Usage
 
 As a command::
 
-  pprofile some_python_executable
+  $ pprofile some_python_executable
 
 Once `some_python_executable` returns, prints annotated code of each file
 involved in the execution (output can be directed to a file using `-o`/`--out`
 arguments).
+
+As a command with conflicting argument names: use "--" before profiled
+executable name::
+
+  $ pprofile -- foo --out bla
 
 As a module::
 
