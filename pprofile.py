@@ -190,6 +190,8 @@ class Profile(object):
         elif isinstance(filename, basestring):
             filename = [filename]
         file_dict = self.file_dict
+        if not file_dict:
+            print >> out, '(no measure)'
         total_time = self.total_time
         print >> out, 'Total duration: %gs' % total_time
         for name in filename:
