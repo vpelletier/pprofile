@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from collections import defaultdict, deque
-from functools import partial
+from functools import partial, wraps
 from time import time
 from warnings import warn
 import argparse
@@ -61,6 +61,15 @@ _ANNOTATE_FORMAT = '%(lineno)6i|%(hits)10i|%(time)13g|%(time_per_hit)13g|' \
 def _initStack():
     return deque(((time(), None, None), ))
 
+def _verboseProfileDecorator(self):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(frame, event, arg):
+            self._traceEvent(frame, event)
+            return func(frame, event, arg)
+        return wrapper
+    return decorator
+
 class Profile(object):
     """
     Deterministic, recursive, line-granularity, profiling class.
@@ -80,9 +89,14 @@ class Profile(object):
     enabled_start = LocalDescriptor(float)
     discount_stack = LocalDescriptor(partial(deque, [0]))
 
-    def __init__(self):
+    def __init__(self, verbose=False):
         self.file_dict = defaultdict(_FileTiming)
         self.total_time = 0
+        if verbose:
+            self._global_trace = _verboseProfileDecorator(self)(
+                self._global_trace)
+            self._local_trace = _verboseProfileDecorator(self)(
+                self._local_trace)
 
     def _enable(self):
         """
@@ -125,6 +139,16 @@ class Profile(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.disable()
+
+    def _traceEvent(self, frame, event):
+      print >> sys.stderr, '%10.6f%s%s %s:%s %s' % (
+          time() - self.enabled_start,
+          ' ' * len(self.stack),
+          event,
+          frame.f_code.co_filename,
+          frame.f_lineno,
+          self.discount_stack[-1],
+      )
 
     def _global_trace(self, frame, event, arg):
         local_trace = self._local_trace
@@ -258,11 +282,12 @@ class ThreadProfile(Profile):
     trace event (typically a "line" event) before they can notice the
     disabling.
     """
+    def __init__(self, verbose=False):
+        super(ThreadProfile, self).__init__(verbose=verbose)
+        self._local_trace_backup = self._local_trace
+
     def _enable(self):
-        try:
-            del self._local_trace
-        except AttributeError:
-            pass
+        self._local_trace = self._local_trace_backup
         threading.settrace(self._global_trace)
         super(ThreadProfile, self)._enable()
 
@@ -272,12 +297,12 @@ class ThreadProfile(Profile):
         self._local_trace = None
 
 # profile/cProfile-like API (no sort parameter !)
-def _run(threads, func_name, filename, *args, **kw):
+def _run(threads, verbose, func_name, filename, *args, **kw):
     if threads:
         klass = ThreadProfile
     else:
         klass = Profile
-    prof = klass()
+    prof = klass(verbose=verbose)
     try:
         try:
             getattr(prof, func_name)(*args, **kw)
@@ -289,15 +314,16 @@ def _run(threads, func_name, filename, *args, **kw):
         else:
             prof.dump_stats(filename)
 
-def run(cmd, filename=None, threads=True):
+def run(cmd, filename=None, threads=True, verbose=False):
     """Similar to profile.run ."""
-    _run(threads, 'run', filename, cmd)
+    _run(threads, verbose, 'run', filename, cmd)
 
-def runctx(cmd, globals, locals, filename=None, threads=True):
+def runctx(cmd, globals, locals, filename=None, threads=True, verbose=False):
     """Similar to profile.runctx ."""
-    _run(threads, 'runctx', filename, cmd, globals, locals)
+    _run(threads, verbose, 'runctx', filename, cmd, globals, locals)
 
-def runfile(fd, argv, filename=None, fd_name='<unknown>', threads=True):
+def runfile(fd, argv, filename=None, fd_name='<unknown>', threads=True,
+        verbose=False):
     """
     Run code from given file descriptor with profiling enabled.
     Closes fd before executing contained code.
@@ -311,17 +337,17 @@ def runfile(fd, argv, filename=None, fd_name='<unknown>', threads=True):
             '__file__': fd_name,
             '__name__': '__main__',
             '__package__': None,
-        }, None, filename=filename, threads=threads)
+        }, None, filename=filename, threads=threads, verbose=verbose)
     finally:
         sys.argv[:] = original_sys_argv
 
-def runpath(path, argv, filename=None, threads=True):
+def runpath(path, argv, filename=None, threads=True, verbose=False):
     """
     Run code from open-accessible file path with profiling enabled.
     """
     sys.path.insert(0, os.path.dirname(path))
     runfile(open(path, 'rb'), argv, fd_name=path, filename=filename,
-        threads=threads)
+        threads=threads, verbose=verbose)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -331,10 +357,12 @@ def main():
         'file. Defaults to stdout.')
     parser.add_argument('-t', '--threads', default=1, type=int, help='If '
         'non-zero, trace threads spawned by program. Default: %(default)s')
+    parser.add_argument('-v', '--verbose', action='store_true',
+        help='Enable profiler internal tracing output. Cryptic and verbose.')
     options, args = parser.parse_known_args()
     args.insert(0, options.script)
     runpath(options.script, args, filename=options.out,
-        threads=bool(options.threads))
+        threads=bool(options.threads), verbose=options.verbose)
 
 if __name__ == '__main__':
     main()
