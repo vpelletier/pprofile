@@ -65,7 +65,7 @@ Then, to display anotated source on stdout::
 
 (several similar methods are available).
 
-Sample output (pprofile.py and threading.py removed from output)::
+Sample output (threading.py removed from output)::
 
   $ pprofile dummy.py
   0.0
