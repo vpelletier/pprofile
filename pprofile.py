@@ -65,7 +65,7 @@ _ANNOTATE_FORMAT = '%(lineno)6i|%(hits)10i|%(time)13g|%(time_per_hit)13g|' \
     '%(percent)6.2f%%|%(line)s'
 
 def _initStack():
-    return deque(((time(), None, None), ))
+    return deque([[time(), None, None]])
 
 def _verboseProfileDecorator(self):
     def decorator(func):
@@ -159,7 +159,7 @@ class Profile(object):
     def _global_trace(self, frame, event, arg):
         local_trace = self._local_trace
         if local_trace is not None:
-            self.stack.append((time(), None, None))
+            self.stack.append([time(), None, None])
             self.discount_stack.append(0)
         return local_trace
 
@@ -168,21 +168,28 @@ class Profile(object):
             event_time = time()
             stack = self.stack
             try:
-                call_time, old_line, old_time = stack.pop()
+                stack_entry = stack[-1]
             except IndexError:
                 warn('Profiling stack underflow, disabling.')
                 self.disable()
                 return
-            if old_line is not None:
+            call_time, old_line, old_time = stack_entry
+            try:
+                duration = event_time - old_time
+            except TypeError:
+                pass
+            else:
                 discount_time = self.discount_stack[-1]
                 if discount_time:
+                    duration -= discount_time
                     self.discount_stack[-1] = 0
-                    old_time += discount_time
                 self.file_dict[frame.f_code.co_filename].hit(old_line,
-                    event_time - old_time)
+                    duration)
             if event == 'line':
-                stack.append((call_time, frame.f_lineno, event_time))
+                stack_entry[1] = frame.f_lineno
+                stack_entry[2] = event_time
             else:
+                stack.pop()
                 self.discount_stack.pop()
                 self.discount_stack[-1] += event_time - call_time
         return self._local_trace
