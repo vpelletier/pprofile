@@ -127,7 +127,6 @@ class Profile(object):
         self.disable()
 
     def _global_trace(self, frame, event, arg):
-        #print >> sys.stderr, frame.f_code, frame.f_lineno, event, arg, len(self.stack)
         local_trace = self._local_trace
         if local_trace is not None:
             self.stack.append((time(), None))
@@ -135,7 +134,6 @@ class Profile(object):
         return local_trace
 
     def _local_trace(self, frame, event, arg):
-        #print >> sys.stderr, frame.f_code, frame.f_lineno, event, arg, len(self.stack)
         if event == 'line' or event == 'return':
             # Access stack before getting event_time, as it may initialise the
             # stack with current time.
