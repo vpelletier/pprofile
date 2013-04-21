@@ -59,7 +59,7 @@ _ANNOTATE_FORMAT = '%(lineno)6i|%(hits)10i|%(time)13g|%(time_per_hit)13g|' \
     '%(percent)6.2f%%|%(line)s'
 
 def _initStack():
-    return deque((time(), None))
+    return deque(((time(), None, None), ))
 
 class Profile(object):
     """
@@ -129,7 +129,7 @@ class Profile(object):
     def _global_trace(self, frame, event, arg):
         local_trace = self._local_trace
         if local_trace is not None:
-            self.stack.append((time(), None))
+            self.stack.append((time(), None, None))
             self.discount_stack.append(0)
         return local_trace
 
@@ -140,13 +140,12 @@ class Profile(object):
             stack = self.stack
             event_time = time()
             try:
-                call_time, old = stack.pop()
+                call_time, old_line, old_time = stack.pop()
             except IndexError:
                 warn('Profiling stack underflow, disabling.')
                 self.disable()
                 return
-            if old is not None:
-                old_line, old_time = old
+            if old_line is not None:
                 discount_time = self.discount_stack[-1]
                 if discount_time:
                     self.discount_stack[-1] = 0
@@ -154,7 +153,7 @@ class Profile(object):
                 self.file_dict[frame.f_code.co_filename].hit(old_line,
                     event_time - old_time)
             if event == 'line':
-                stack.append((call_time, (frame.f_lineno, event_time)))
+                stack.append((call_time, frame.f_lineno, event_time))
             else:
                 self.discount_stack.pop()
                 self.discount_stack[-1] += event_time - call_time
