@@ -187,7 +187,7 @@ class Profile(object):
         """
         if filename is None:
             filename = sorted(self.getFilenameSet())
-        elif isintance(filename, basestring):
+        elif isinstance(filename, basestring):
             filename = [filename]
         file_dict = self.file_dict
         total_time = self.total_time
