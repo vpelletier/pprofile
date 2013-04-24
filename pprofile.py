@@ -9,9 +9,12 @@ import os
 import sys
 import threading
 
-def _getFuncOrFile(func, module):
-    if func == '<module>':
-        func = module
+def _getFuncOrFile(func, module, line):
+    if func[0] == '<':
+      result = '%s@%s' % (func, module)
+      if func != '<module>':
+          result = '%s:%s' % (result, line)
+      func = result
     return func
 
 class _FileTiming(object):
@@ -299,22 +302,19 @@ class Profile(object):
                     continue
                 if funcname != func:
                     funcname = func
-                    print >> out, 'fn=%s' % _getFuncOrFile(func, name)
+                    print >> out, 'fn=%s' % _getFuncOrFile(func, name, lineno)
                 ticks = int(duration * 1000000)
                 if hits == 0:
                     ticksperhit = 0
                 else:
                     ticksperhit = ticks / hits
                 print >> out, lineno, hits, ticks, ticksperhit
-                last_cfl = None
                 for hits, duration, callee_file, callee_line, callee_name in \
                         sorted(call_list_by_line.get(lineno, ()),
                             key=lambda x: x[2:4]):
-                    if callee_file != last_cfl:
-                        last_cfl = callee_file
-                        print >> out, 'cfl=%s' % callee_file
+                    print >> out, 'cfl=%s' % callee_file
                     print >> out, 'cfn=%s' % _getFuncOrFile(callee_name,
-                        callee_file)
+                        callee_file, callee_line)
                     print >> out, 'calls=%s' % hits, callee_line
                     duration = duration * 1000000
                     print >> out, lineno, hits, int(duration), int(duration / hits)
