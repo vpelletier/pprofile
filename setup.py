@@ -9,7 +9,7 @@ description = open(join(dirname(__file__), 'README.rst')).read()
 
 setup(
     name='pprofile',
-    version='1.2',
+    version='1.2.1',
     author='Vincent Pelletier',
     author_email='plr.vincent@gmail.com',
     description=next(x for x in description.splitlines() if x.strip()),
