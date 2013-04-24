@@ -228,10 +228,10 @@ class Profile(object):
                 key=lambda x: file_dict[x].getTotalTime())
         elif isinstance(filename, basestring):
             filename = [filename]
-        if not file_dict:
-            print >> out, '(no measure)'
         total_time = self.total_time
         print >> out, 'Total duration: %gs' % total_time
+        if not total_time:
+            return
         for name in filename:
             file_timing = file_dict[name]
             file_total_time = file_timing.getTotalTime()
