@@ -3,6 +3,9 @@
 def trigger():
     raise Exception
 
+def indirect():
+    trigger()
+
 # Caught exception
 try:
     raise Exception
@@ -12,6 +15,12 @@ except Exception:
 # Caught exception, from function
 try:
     trigger()
+except Exception:
+    pass
+
+# Caught exception, from deeper function
+try:
+    indirect()
 except Exception:
     pass
 
