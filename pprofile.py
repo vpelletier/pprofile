@@ -308,7 +308,7 @@ class Profile(object):
                     ticksperhit = 0
                 else:
                     ticksperhit = ticks / hits
-                print >> out, lineno, hits, ticks, ticksperhit
+                print >> out, lineno, hits, ticks, int(ticksperhit)
                 for hits, duration, callee_file, callee_line, callee_name in \
                         sorted(call_list_by_line.get(lineno, ()),
                             key=lambda x: x[2:4]):
@@ -316,7 +316,7 @@ class Profile(object):
                     print >> out, 'cfn=%s' % _getFuncOrFile(callee_name,
                         callee_file, callee_line)
                     print >> out, 'calls=%s' % hits, callee_line
-                    duration = duration * 1000000
+                    duration *= 1000000
                     print >> out, lineno, hits, int(duration), int(duration / hits)
 
     def annotate(self, out, filename=None, commandline=None):
