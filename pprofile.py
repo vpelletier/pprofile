@@ -267,7 +267,9 @@ class Profile(object):
 
     # profile/cProfile-like API
     def dump_stats(self, filename):
-        """Similar to profile.Profile.dump_stats ."""
+        """
+        Similar to profile.Profile.dump_stats - but different output format !
+        """
         with open(filename, 'w') as out:
             self.annotate(out)
 
