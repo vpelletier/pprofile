@@ -297,6 +297,30 @@ class Profile(object):
         with self:
             return func(*args, **kw)
 
+    def runfile(self, fd, argv, fd_name='<unknown>', compile_flags=0,
+            dont_inherit=0):
+        with fd:
+            code = compile(fd.read(), fd_name, 'exec', flags=compile_flags,
+                dont_inherit=dont_inherit)
+        original_sys_argv = list(sys.argv)
+        try:
+            sys.argv[:] = argv
+            return self.runctx(code, {
+                '__file__': fd_name,
+                '__name__': '__main__',
+                '__package__': None,
+            }, None)
+        finally:
+            sys.argv[:] = original_sys_argv
+
+    def runpath(self, path, argv):
+        original_sys_path = list(sys.path)
+        try:
+            sys.path.insert(0, os.path.dirname(path))
+            return self.runfile(open(path, 'rb'), argv, fd_name=path)
+        finally:
+            sys.path[:] = original_sys_path
+
 class ThreadProfile(Profile):
     """
     threading.Thread-aware version of Profile class.
@@ -346,32 +370,20 @@ def runctx(cmd, globals, locals, filename=None, threads=True, verbose=False):
     """Similar to profile.runctx ."""
     _run(threads, verbose, 'runctx', filename, cmd, globals, locals)
 
-def runfile(fd, argv, filename=None, fd_name='<unknown>', threads=True,
-        verbose=False):
+def runfile(fd, argv, fd_name='<unknown>', compile_flags=0, dont_inherit=0,
+        filename=None, threads=True, verbose=False):
     """
     Run code from given file descriptor with profiling enabled.
     Closes fd before executing contained code.
     """
-    with fd:
-        code = compile(fd.read(), fd_name, 'exec')
-    original_sys_argv = list(sys.argv)
-    try:
-        sys.argv[:] = argv
-        runctx(code, {
-            '__file__': fd_name,
-            '__name__': '__main__',
-            '__package__': None,
-        }, None, filename=filename, threads=threads, verbose=verbose)
-    finally:
-        sys.argv[:] = original_sys_argv
+    _run(threads, verbose, 'runfile', filename, fd, argv, fd_name,
+        compile_flags, dont_inherit)
 
 def runpath(path, argv, filename=None, threads=True, verbose=False):
     """
     Run code from open-accessible file path with profiling enabled.
     """
-    sys.path.insert(0, os.path.dirname(path))
-    runfile(open(path, 'rb'), argv, fd_name=path, filename=filename,
-        threads=threads, verbose=verbose)
+    _run(threads, verbose, 'runpath', filename, path, argv)
 
 def main():
     parser = argparse.ArgumentParser()
