@@ -9,6 +9,11 @@ import os
 import sys
 import threading
 
+def _getFuncOrFile(func, module):
+    if func == '<module>':
+        func = module
+    return func
+
 class _FileTiming(object):
     __slots__ = ('line_dict', 'call_dict')
     def __init__(self):
@@ -294,7 +299,7 @@ class Profile(object):
                     continue
                 if funcname != func:
                     funcname = func
-                    print >> out, 'fn=%s' % func
+                    print >> out, 'fn=%s' % _getFuncOrFile(func, name)
                 ticks = int(duration * 1000000)
                 if hits == 0:
                     ticksperhit = 0
@@ -308,7 +313,8 @@ class Profile(object):
                     if callee_file != last_cfl:
                         last_cfl = callee_file
                         print >> out, 'cfl=%s' % callee_file
-                    print >> out, 'cfn=%s' % callee_name
+                    print >> out, 'cfn=%s' % _getFuncOrFile(callee_name,
+                        callee_file)
                     print >> out, 'calls=%s' % hits, callee_line
                     duration = duration * 1000000
                     print >> out, lineno, hits, int(duration), int(duration / hits)
