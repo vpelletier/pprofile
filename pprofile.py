@@ -10,20 +10,44 @@ import sys
 import threading
 
 class _FileTiming(object):
-    __slots__ = ('line_dict', )
+    __slots__ = ('line_dict', 'call_dict')
     def __init__(self):
-        self.line_dict = defaultdict(lambda: [0, 0])
+        self.line_dict = {}
+        self.call_dict = defaultdict(lambda: [0, 0])
 
-    def hit(self, line, duration):
-        entry = self.line_dict[line]
+    def hit(self, code, line, duration):
+        try:
+            entry = self.line_dict[line]
+        except KeyError:
+            self.line_dict[line] = [code, 1, duration]
+        else:
+            entry[1] += 1
+            entry[2] += duration
+
+    def call(self, line, callee, duration):
+        entry = self.call_dict[(line, callee)]
         entry[0] += 1
         entry[1] += duration
 
-    def getStatsFor(self, line):
-        return self.line_dict.get(line, (0, 0))
+    def getHitStatsFor(self, line):
+        code, line, duration = self.line_dict.get(line, (None, 0, 0))
+        if code is not None:
+            code = code.co_name
+        return code, line, duration
+
+    def getCallListByLine(self):
+        result = {}
+        for (line, callee), (hit, duration) in self.call_dict.iteritems():
+            if line in result: # Miss more likely than a hit.
+                entry = result[line]
+            else:
+                result[line] = entry = []
+            entry.append((hit, duration, callee.co_filename,
+                callee.co_firstlineno, callee.co_name))
+        return result
 
     def getTotalTime(self):
-        return sum(x[1] for x in self.line_dict.itervalues())
+        return sum(x[2] for x in self.line_dict.itervalues())
 
 class LocalDescriptor(threading.local):
     """
@@ -63,6 +87,8 @@ _ANNOTATE_HORIZONTAL_LINE = ''.join(x == '|' and '+' or '-'
     for x in _ANNOTATE_HEADER)
 _ANNOTATE_FORMAT = '%(lineno)6i|%(hits)10i|%(time)13g|%(time_per_hit)13g|' \
     '%(percent)6.2f%%|%(line)s'
+_ANNOTATE_CALL_FORMAT = '(call)|%(hits)10i|%(time)13g|%(time_per_hit)13g|' \
+        '%(percent)6.2f%%|# %(callee_file)s:%(callee_line)s %(callee_name)s'
 
 def _initStack():
     return deque([[time(), None, None]])
@@ -188,7 +214,8 @@ class Profile(object):
                 if discount_time:
                     duration -= discount_time
                     self.discount_stack[-1] = 0
-                self.file_dict[frame.f_code.co_filename].hit(old_line,
+                code = frame.f_code
+                self.file_dict[code.co_filename].hit(code, old_line,
                     duration)
             if event == 'line':
                 stack_entry[1] = frame.f_lineno
@@ -196,7 +223,11 @@ class Profile(object):
             else:
                 stack.pop()
                 self.discount_stack.pop()
-                self.discount_stack[-1] += event_time - call_time
+                inclusive_duration = event_time - call_time
+                self.discount_stack[-1] += inclusive_duration
+                caller_frame = frame.f_back
+                self.file_dict[caller_frame.f_code.co_filename].call(
+                    caller_frame.f_lineno, frame.f_code, inclusive_duration)
         return self._local_trace
 
     def getFilenameSet(self):
@@ -212,7 +243,77 @@ class Profile(object):
         result.discard(__file__)
         return result
 
-    def annotate(self, out, filename=None):
+    def _getFileNameList(self, filename):
+        file_dict = self.file_dict
+        if filename is None:
+            return sorted(self.getFilenameSet(), reverse=True,
+                key=lambda x: file_dict[x].getTotalTime())
+        elif isinstance(filename, basestring):
+            return [filename]
+        return filename
+
+    def _iterFile(self, name):
+        lineno = 0
+        file_timing = self.file_dict[name]
+        while True:
+            lineno += 1
+            line = linecache.getline(name, lineno)
+            func, hits, duration = file_timing.getHitStatsFor(lineno)
+            if not line:
+                if hits == 0:
+                    break
+                # Line exists in stats, but not in file. Happens on 1st
+                # line of empty files (ex: __init__.py). Fake the presence
+                # of an empty line.
+                line = '\n'
+            yield lineno, func, hits, duration, line
+
+    def callgrind(self, out, filename=None, commandline=None):
+        """
+        Dump statistics in callgrind format.
+        Contains:
+        - per-line hit count, time and time-per-hit
+        - call associations (call tree)
+          Note: hit count is not inclusive, in that it is not the sum of all
+          hits inside that call.
+        Time unit: microsecond (1e-6 second).
+        """
+        print >> out, 'version: 1'
+        if commandline is not None:
+            print >> out, 'cmd:', commandline
+        print >> out, 'creator: pprofile'
+        print >> out, 'event: usphit :us/hit'
+        print >> out, 'events: hits us usphit'
+        file_dict = self.file_dict
+        for name in self._getFileNameList(filename):
+            print >> out, 'fl=%s' % name
+            funcname = None
+            call_list_by_line = file_dict[name].getCallListByLine()
+            for lineno, func, hits, duration, _ in self._iterFile(name):
+                if not hits:
+                    continue
+                if funcname != func:
+                    funcname = func
+                    print >> out, 'fn=%s' % func
+                ticks = int(duration * 1000000)
+                if hits == 0:
+                    ticksperhit = 0
+                else:
+                    ticksperhit = ticks / hits
+                print >> out, lineno, hits, ticks, ticksperhit
+                last_cfl = None
+                for hits, duration, callee_file, callee_line, callee_name in \
+                        sorted(call_list_by_line.get(lineno, ()),
+                            key=lambda x: x[2:4]):
+                    if callee_file != last_cfl:
+                        last_cfl = callee_file
+                        print >> out, 'cfl=%s' % callee_file
+                    print >> out, 'cfn=%s' % callee_name
+                    print >> out, 'calls=%s' % hits, callee_line
+                    duration = duration * 1000000
+                    print >> out, lineno, hits, int(duration), int(duration / hits)
+
+    def annotate(self, out, filename=None, commandline=None):
         """
         Dump annotated source code with current profiling statistics to "out"
         file.
@@ -221,37 +322,25 @@ class Profile(object):
         filename (str, list of str)
             If provided, dump stats for given source file(s) only.
             By default, list for all known files.
+        Time unit: second.
         """
         file_dict = self.file_dict
-        if filename is None:
-            filename = sorted(self.getFilenameSet(), reverse=True,
-                key=lambda x: file_dict[x].getTotalTime())
-        elif isinstance(filename, basestring):
-            filename = [filename]
         total_time = self.total_time
+        if commandline is not None:
+            print >> out, 'Command line:', commandline
         print >> out, 'Total duration: %gs' % total_time
         if not total_time:
             return
-        for name in filename:
+        for name in self._getFileNameList(filename):
             file_timing = file_dict[name]
             file_total_time = file_timing.getTotalTime()
+            call_list_by_line = file_timing.getCallListByLine()
             print >> out, name
             print >> out, 'File duration: %gs (%.2f%%)' % (file_total_time,
                 file_total_time * 100 / total_time)
             print >> out, _ANNOTATE_HEADER
             print >> out, _ANNOTATE_HORIZONTAL_LINE
-            lineno = 0
-            while True:
-                lineno += 1
-                line = linecache.getline(name, lineno)
-                hits, duration = file_timing.getStatsFor(lineno)
-                if not line:
-                    if hits == 0:
-                        break
-                    # Line exists in stats, but not in file. Happens on 1st
-                    # line of empty files (ex: __init__.py). Fake the presence
-                    # of an empty line.
-                    line = '\n'
+            for lineno, _, hits, duration, line in self._iterFile(name):
                 if hits:
                     time_per_hit = duration / hits
                 else:
@@ -264,6 +353,17 @@ class Profile(object):
                   'percent': duration * 100 / total_time,
                   'line': line,
                 },
+                for hits, duration, callee_file, callee_line, callee_name in \
+                        call_list_by_line.get(lineno, ()):
+                    print >> out, _ANNOTATE_CALL_FORMAT % {
+                        'hits': hits,
+                        'time': duration,
+                        'time_per_hit': duration / hits,
+                        'percent': duration * 100 / total_time,
+                        'callee_file': callee_file,
+                        'callee_line': callee_line,
+                        'callee_name': callee_name,
+                    }
 
     # profile/cProfile-like API
     def dump_stats(self, filename):
@@ -386,6 +486,11 @@ def runpath(path, argv, filename=None, threads=True, verbose=False):
     _run(threads, verbose, 'runpath', filename, path, argv)
 
 def main():
+    format_dict = {
+        'text': 'annotate',
+        'callgrind': 'callgrind',
+    }
+
     parser = argparse.ArgumentParser()
     parser.add_argument('script', help='Python script to execute (optionaly '
         'followed by its arguments)')
@@ -393,12 +498,31 @@ def main():
         'file. Defaults to stdout.')
     parser.add_argument('-t', '--threads', default=1, type=int, help='If '
         'non-zero, trace threads spawned by program. Default: %(default)s')
+    parser.add_argument('-f', '--format', default='text', choices=format_dict,
+        help='Format in which output is generated. Default: %(default)s')
     parser.add_argument('-v', '--verbose', action='store_true',
         help='Enable profiler internal tracing output. Cryptic and verbose.')
     options, args = parser.parse_known_args()
     args.insert(0, options.script)
-    runpath(options.script, args, filename=options.out,
-        threads=bool(options.threads), verbose=options.verbose)
+    if options.threads:
+        klass = ThreadProfile
+    else:
+        klass = Profile
+    prof = klass(verbose=options.verbose)
+    try:
+        prof.runpath(options.script, args)
+    finally:
+        if options.out is None:
+            out = sys.stdout
+            close = lambda: None
+        else:
+            out = open(options.out, 'w')
+            close = out.close
+        getattr(prof, format_dict[options.format])(
+            out,
+            commandline=repr(args),
+        )
+        close()
 
 if __name__ == '__main__':
     main()
