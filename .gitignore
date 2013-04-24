@@ -1,3 +1,4 @@
 dist/
 build/
 pprofile.egg-info/
+*.pyc
