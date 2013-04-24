@@ -70,53 +70,49 @@ Then, to display anotated source on stdout::
 
 (several similar methods are available).
 
-Sample output (threading.py removed from output)::
+Sample output (standard threading.py removed from output for readability)::
 
-  $ pprofile dummy.py
-  0.0
-  55
-  9.26535896605e-05
-  6765
-  Total duration: 0.245515s
-  dummy.py
+  $ pprofile --threads 0 demo/threads.py
+  Command line: ['demo/threads.py']
+  Total duration: 1.00573s
+  File: demo/threads.py
+  File duration: 1.00168s (99.60%)
   Line #|      Hits|         Time| Time per hit|      %|Source code
   ------+----------+-------------+-------------+-------+-----------
-       1|         0|            0|            0|  0.00%|#!/usr/bin/env python
-       2|         1|  7.15256e-06|  7.15256e-06|  0.00%|import threading
-       3|         1|  0.000106812|  0.000106812|  0.04%|from dummy_module.fibo import fibo, sin
-       4|         0|            0|            0|  0.00%|
-       5|         1|  5.96046e-06|  5.96046e-06|  0.00%|def sin_printer(n):
-       6|         2|    0.0359957|    0.0179979| 14.66%|    print sin(n)
-       7|         0|            0|            0|  0.00%|
-       8|         1|  4.05312e-06|  4.05312e-06|  0.00%|def main():
-       9|         1|  1.21593e-05|  1.21593e-05|  0.00%|    t1 = threading.Thread(target=sin_printer, args=(0, ))
-      10|         1|  1.19209e-05|  1.19209e-05|  0.00%|    t2 = threading.Thread(target=sin_printer, args=(3.1415, ))
-      11|         1|  4.29153e-05|  4.29153e-05|  0.02%|    t1.start()
-      12|         1|  0.000106812|  0.000106812|  0.04%|    print fibo(10)
-      13|         1|  4.22001e-05|  4.22001e-05|  0.02%|    t2.start()
-      14|         1|  5.10216e-05|  5.10216e-05|  0.02%|    print fibo(20)
-      15|         1|  1.78814e-05|  1.78814e-05|  0.01%|    t1.join()
-      16|         1|  1.19209e-05|  1.19209e-05|  0.00%|    t2.join()
-      17|         0|            0|            0|  0.00%|
-      18|         1|  5.00679e-06|  5.00679e-06|  0.00%|if __name__ == '__main__':
-      19|         1|  1.38283e-05|  1.38283e-05|  0.01%|    main()
-  dummy_module/__init__.py
-  Line #|      Hits|         Time| Time per hit|      %|Source code
-  ------+----------+-------------+-------------+-------+-----------
-       1|         1|  2.14577e-06|  2.14577e-06|  0.00%|
-  dummy_module/fibo.py
-  Line #|      Hits|         Time| Time per hit|      %|Source code
-  ------+----------+-------------+-------------+-------+-----------
-       1|         1|  3.38554e-05|  3.38554e-05|  0.01%|import math
-       2|         0|            0|            0|  0.00%|
-       3|         1|  7.15256e-06|  7.15256e-06|  0.00%|def fibo(n):
-       4|     13638|    0.0266435|  1.95362e-06| 10.85%|    assert n > 0, n
-       5|     13638|    0.0526528|  3.86074e-06| 21.45%|    if n < 3:
-       6|      6820|    0.0255547|  3.74702e-06| 10.41%|        return 1
-       7|      6818|     0.108189|  1.58681e-05| 44.07%|    return fibo(n - 1) + fibo(n - 2)
-       8|         0|            0|            0|  0.00%|
-       9|         1|  5.00679e-06|  5.00679e-06|  0.00%|def sin(n):
-      10|         2|  8.91685e-05|  4.45843e-05|  0.04%|    return math.sin(n)
+       1|         2|  3.21865e-05|  1.60933e-05|  0.00%|import threading
+       2|         1|  5.96046e-06|  5.96046e-06|  0.00%|import time
+       3|         0|            0|            0|  0.00%|
+       4|         2|   1.5974e-05|  7.98702e-06|  0.00%|def func():
+       5|         1|      1.00111|      1.00111| 99.54%|  time.sleep(1)
+       6|         0|            0|            0|  0.00%|
+       7|         2|  2.00272e-05|  1.00136e-05|  0.00%|def func2():
+       8|         1|  1.69277e-05|  1.69277e-05|  0.00%|  pass
+       9|         0|            0|            0|  0.00%|
+      10|         1|  1.81198e-05|  1.81198e-05|  0.00%|t1 = threading.Thread(target=func)
+  (call)|         1|  0.000610828|  0.000610828|  0.06%|# /usr/lib/python2.7/threading.py:436 __init__
+      11|         1|  1.52588e-05|  1.52588e-05|  0.00%|t2 = threading.Thread(target=func)
+  (call)|         1|  0.000438929|  0.000438929|  0.04%|# /usr/lib/python2.7/threading.py:436 __init__
+      12|         1|  4.79221e-05|  4.79221e-05|  0.00%|t1.start()
+  (call)|         1|  0.000843048|  0.000843048|  0.08%|# /usr/lib/python2.7/threading.py:485 start
+      13|         1|  6.48499e-05|  6.48499e-05|  0.01%|t2.start()
+  (call)|         1|   0.00115609|   0.00115609|  0.11%|# /usr/lib/python2.7/threading.py:485 start
+      14|         1|  0.000205994|  0.000205994|  0.02%|(func(), func2())
+  (call)|         1|      1.00112|      1.00112| 99.54%|# demo/threads.py:4 func
+  (call)|         1|  3.09944e-05|  3.09944e-05|  0.00%|# demo/threads.py:7 func2
+      15|         1|  7.62939e-05|  7.62939e-05|  0.01%|t1.join()
+  (call)|         1|  0.000423908|  0.000423908|  0.04%|# /usr/lib/python2.7/threading.py:653 join
+      16|         1|  5.26905e-05|  5.26905e-05|  0.01%|t2.join()
+  (call)|         1|  0.000320196|  0.000320196|  0.03%|# /usr/lib/python2.7/threading.py:653 join
+
+Note that time.sleep call is not counted as such. For some reason, python is
+not generating c_call/c_return/c_exception events (which are ignored by current
+code, as a result).
+
+Generating callgrind_-format output in a file instead of stdout::
+
+  $ pprofile --format callgrind --out treads.log demo/threads.py
+
+Can be opened, for example, with kcachegrind_.
 
 Thread-aware profiling
 ======================
@@ -140,9 +136,10 @@ other threads.
 Example (lines are reported as taking longer to execute when profiled along
 with another thread - although the other thread is not profiled)::
 
-  $ ./ppsinglethread.py
-  Total duration: 1.00009s
-  ./ppsinglethread.py
+  $ demo/embedded.py
+  Total duration: 1.00013s
+  File: demo/embedded.py
+  File duration: 1.00003s (99.99%)
   Line #|      Hits|         Time| Time per hit|      %|Source code
   ------+----------+-------------+-------------+-------+-----------
        1|         0|            0|            0|  0.00%|#!/usr/bin/env python
@@ -151,16 +148,17 @@ with another thread - although the other thread is not profiled)::
        4|         0|            0|            0|  0.00%|import time
        5|         0|            0|            0|  0.00%|import sys
        6|         0|            0|            0|  0.00%|
-       7|         0|            0|            0|  0.00%|def func():
+       7|         1|   1.5974e-05|   1.5974e-05|  0.00%|def func():
        8|         0|            0|            0|  0.00%|  # Busy loop, so context switches happe, so context switches happenn
-       9|         1|  5.96046e-06|  5.96046e-06|  0.00%|  end = time.time() + 1
-      10|    141331|     0.513656|  3.63442e-06| 51.36%|  while time.time() < end:
-      11|    141330|     0.486344|   3.4412e-06| 48.63%|    pass
+       9|         1|  1.40667e-05|  1.40667e-05|  0.00%|  end = time.time() + 1
+      10|    146604|     0.511392|  3.48826e-06| 51.13%|  while time.time() < end:
+      11|    146603|      0.48861|  3.33288e-06| 48.85%|    pass
       12|         0|            0|            0|  0.00%|
       13|         0|            0|            0|  0.00%|# Single-treaded run
       14|         0|            0|            0|  0.00%|prof = pprofile.Profile()
       15|         0|            0|            0|  0.00%|with prof:
       16|         0|            0|            0|  0.00%|  func()
+  (call)|         1|      1.00003|      1.00003| 99.99%|# ./demo/embedded.py:7 func
       17|         0|            0|            0|  0.00%|prof.annotate(sys.stdout, __file__)
       18|         0|            0|            0|  0.00%|
       19|         0|            0|            0|  0.00%|# Dual-threaded run
@@ -171,39 +169,61 @@ with another thread - although the other thread is not profiled)::
       24|         0|            0|            0|  0.00%|  func()
       25|         0|            0|            0|  0.00%|  t1.join()
       26|         0|            0|            0|  0.00%|prof.annotate(sys.stdout, __file__)
-  Total duration: 1.03361s
-  ./ppsinglethread.py
+  Total duration: 1.00129s
+  File: demo/embedded.py
+  File duration: 1.00004s (99.88%)
   Line #|      Hits|         Time| Time per hit|      %|Source code
   ------+----------+-------------+-------------+-------+-----------
   [...]
-       9|         1|   3.8147e-06|   3.8147e-06|  0.00%|  end = time.time() + 1
-      10|     59771|     0.487474|   8.1557e-06| 47.16%|  while time.time() < end:
-      11|     59770|     0.512529|  8.57502e-06| 49.59%|    pass
+       7|         1|  1.50204e-05|  1.50204e-05|  0.00%|def func():
+       8|         0|            0|            0|  0.00%|  # Busy loop, so context switches happe, so context switches happenn
+       9|         1|  2.38419e-05|  2.38419e-05|  0.00%|  end = time.time() + 1
+      10|     64598|     0.538571|  8.33728e-06| 53.79%|  while time.time() < end:
+      11|     64597|     0.461432|  7.14324e-06| 46.08%|    pass
   [...]
 
 This also means that the sum of the percentage of all lines can exceed 100%. It
 can reach the number of concurrent threads (200% with 2 threads being busy for
 the whole profiled executiong time, etc).
 
-Example with 3 threads::
+Example with 3 threads (same as first example, this time with thread profiling
+enabled)::
 
-  $ ./pprofile.py ppthread.py
-  Total duration: 1.00541s
-  ppthread.py
+  $ pprofile demo/threads.py
+  Command line: ['demo/threads.py']
+  Total duration: 1.00798s
+  File: demo/threads.py
+  File duration: 3.00604s (298.22%)
   Line #|      Hits|         Time| Time per hit|      %|Source code
   ------+----------+-------------+-------------+-------+-----------
-       1|         1|  6.19888e-06|  6.19888e-06|  0.00%|import threading
-       2|         1|  1.50204e-05|  1.50204e-05|  0.00%|import time
+       1|         2|  3.21865e-05|  1.60933e-05|  0.00%|import threading
+       2|         1|  6.91414e-06|  6.91414e-06|  0.00%|import time
        3|         0|            0|            0|  0.00%|
-       4|         1|   3.8147e-06|   3.8147e-06|  0.00%|def func():
-       5|         3|      3.00359|       1.0012|298.74%|  time.sleep(1)
+       4|         4|  3.91006e-05|  9.77516e-06|  0.00%|def func():
+       5|         3|      3.00539|       1.0018|298.16%|  time.sleep(1)
        6|         0|            0|            0|  0.00%|
-       7|         1|  1.40667e-05|  1.40667e-05|  0.00%|t1 = threading.Thread(target=func)
-       8|         1|  1.09673e-05|  1.09673e-05|  0.00%|t2 = threading.Thread(target=func)
-       9|         1|  2.88486e-05|  2.88486e-05|  0.00%|t1.start()
-      10|         1|  4.69685e-05|  4.69685e-05|  0.00%|t2.start()
-      11|         1|  5.79357e-05|  5.79357e-05|  0.01%|func()
-      12|         1|  5.67436e-05|  5.67436e-05|  0.01%|t1.join()
-      13|         1|  3.88622e-05|  3.88622e-05|  0.00%|t2.join()
+       7|         2|  2.31266e-05|  1.15633e-05|  0.00%|def func2():
+       8|         1|  2.38419e-05|  2.38419e-05|  0.00%|  pass
+       9|         0|            0|            0|  0.00%|
+      10|         1|  1.81198e-05|  1.81198e-05|  0.00%|t1 = threading.Thread(target=func)
+  (call)|         1|  0.000612974|  0.000612974|  0.06%|# /usr/lib/python2.7/threading.py:436 __init__
+      11|         1|  1.57356e-05|  1.57356e-05|  0.00%|t2 = threading.Thread(target=func)
+  (call)|         1|  0.000438213|  0.000438213|  0.04%|# /usr/lib/python2.7/threading.py:436 __init__
+      12|         1|  6.60419e-05|  6.60419e-05|  0.01%|t1.start()
+  (call)|         1|  0.000913858|  0.000913858|  0.09%|# /usr/lib/python2.7/threading.py:485 start
+      13|         1|   6.8903e-05|   6.8903e-05|  0.01%|t2.start()
+  (call)|         1|   0.00167513|   0.00167513|  0.17%|# /usr/lib/python2.7/threading.py:485 start
+      14|         1|  0.000200272|  0.000200272|  0.02%|(func(), func2())
+  (call)|         1|      1.00274|      1.00274| 99.48%|# demo/threads.py:4 func
+  (call)|         1|  4.19617e-05|  4.19617e-05|  0.00%|# demo/threads.py:7 func2
+      15|         1|  9.58443e-05|  9.58443e-05|  0.01%|t1.join()
+  (call)|         1|  0.000411987|  0.000411987|  0.04%|# /usr/lib/python2.7/threading.py:653 join
+      16|         1|  5.29289e-05|  5.29289e-05|  0.01%|t2.join()
+  (call)|         1|  0.000316143|  0.000316143|  0.03%|# /usr/lib/python2.7/threading.py:653 join
+
+Note that the call time is not added to file total: it's already accounted
+for inside "func".
 
 .. _line_profiler: https://bitbucket.org/robertkern/line_profiler
+.. _callgrind: http://valgrind.org/docs/manual/cl-format.html
+.. _kcachegrind: http://kcachegrind.sourceforge.net
