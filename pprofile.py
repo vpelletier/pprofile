@@ -335,7 +335,7 @@ class Profile(object):
             file_timing = file_dict[name]
             file_total_time = file_timing.getTotalTime()
             call_list_by_line = file_timing.getCallListByLine()
-            print >> out, name
+            print >> out, 'File:', name
             print >> out, 'File duration: %gs (%.2f%%)' % (file_total_time,
                 file_total_time * 100 / total_time)
             print >> out, _ANNOTATE_HEADER
