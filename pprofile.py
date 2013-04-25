@@ -40,8 +40,11 @@ class _FileTiming(object):
     def getHitStatsFor(self, line):
         code, line, duration = self.line_dict.get(line, (None, 0, 0))
         if code is not None:
+            firstlineno = code.co_firstlineno
             code = code.co_name
-        return code, line, duration
+        else:
+            firstlineno = None
+        return code, firstlineno, line, duration
 
     def getCallListByLine(self):
         result = {}
@@ -266,7 +269,8 @@ class Profile(object):
         while True:
             lineno += 1
             line = linecache.getline(name, lineno)
-            func, hits, duration = file_timing.getHitStatsFor(lineno)
+            func, firstlineno, hits, duration = file_timing.getHitStatsFor(
+                lineno)
             if not line:
                 if hits == 0:
                     break
@@ -274,7 +278,7 @@ class Profile(object):
                 # line of empty files (ex: __init__.py). Fake the presence
                 # of an empty line.
                 line = '\n'
-            yield lineno, func, hits, duration, line
+            yield lineno, func, firstlineno, hits, duration, line
 
     def callgrind(self, out, filename=None, commandline=None):
         """
@@ -297,12 +301,13 @@ class Profile(object):
             print >> out, 'fl=%s' % name
             funcname = None
             call_list_by_line = file_dict[name].getCallListByLine()
-            for lineno, func, hits, duration, _ in self._iterFile(name):
+            for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
+                    name):
                 if not hits:
                     continue
                 if funcname != func:
                     funcname = func
-                    print >> out, 'fn=%s' % _getFuncOrFile(func, name, lineno)
+                    print >> out, 'fn=%s' % _getFuncOrFile(func, name, firstlineno)
                 ticks = int(duration * 1000000)
                 if hits == 0:
                     ticksperhit = 0
@@ -346,7 +351,7 @@ class Profile(object):
                 file_total_time * 100 / total_time)
             print >> out, _ANNOTATE_HEADER
             print >> out, _ANNOTATE_HORIZONTAL_LINE
-            for lineno, _, hits, duration, line in self._iterFile(name):
+            for lineno, _, _, hits, duration, line in self._iterFile(name):
                 if hits:
                     time_per_hit = duration / hits
                 else:
