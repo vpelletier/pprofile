@@ -10,12 +10,10 @@ import sys
 import threading
 
 def _getFuncOrFile(func, module, line):
-    if func[0] == '<':
-      result = '%s@%s' % (func, module)
-      if func != '<module>':
-          result = '%s:%s' % (result, line)
-      func = result
-    return func
+    if func == '<module>':
+        return module
+    else:
+        return '%s:%s' % (func, line)
 
 class _FileTiming(object):
     __slots__ = ('line_dict', 'call_dict')
