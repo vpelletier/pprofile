@@ -329,12 +329,13 @@ class Profile(object):
         file_dict = self.file_dict
         for name, ident in self._getFileIdentList(filename):
             print >> out, 'fl=%s' % name
-            funcname = None
+            funcname = False
             call_list_by_line = file_dict[ident].getCallListByLine()
             for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
                     ident):
-                if not hits:
-                    continue
+                call_list = call_list_by_line.get(lineno, ())
+                if not hits and not call_list:
+                  continue
                 if funcname != func:
                     funcname = func
                     print >> out, 'fn=%s' % _getFuncOrFile(func, name, firstlineno)
@@ -345,8 +346,7 @@ class Profile(object):
                     ticksperhit = ticks / hits
                 print >> out, lineno, hits, ticks, int(ticksperhit)
                 for hits, duration, callee_file, callee_line, callee_name in \
-                        sorted(call_list_by_line.get(lineno, ()),
-                            key=lambda x: x[2:4]):
+                        sorted(call_list, key=lambda x: x[2:4]):
                     print >> out, 'cfl=%s' % callee_file
                     print >> out, 'cfn=%s' % _getFuncOrFile(callee_name,
                         callee_file, callee_line)
