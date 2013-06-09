@@ -307,7 +307,7 @@ class Profile(object):
                 # Line exists in stats, but not in file. Happens on 1st
                 # line of empty files (ex: __init__.py). Fake the presence
                 # of an empty line.
-                line = '\n'
+                line = os.linesep
             yield lineno, func, firstlineno, hits, duration, line
 
     def callgrind(self, out, filename=None, commandline=None):
