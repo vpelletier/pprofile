@@ -253,7 +253,7 @@ class Profile(object):
         """
         Overload in subclasses to customise filename generation.
         """
-        return file_timing.name
+        return file_timing.filename
 
     def getFilenameSet(self):
         """
