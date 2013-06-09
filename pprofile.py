@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from collections import defaultdict, deque
+from collections import defaultdict, deque, OrderedDict
 from functools import partial, wraps
 from time import time
 from warnings import warn
@@ -16,8 +16,10 @@ def _getFuncOrFile(func, module, line):
         return '%s:%s' % (func, line)
 
 class _FileTiming(object):
-    __slots__ = ('line_dict', 'call_dict')
-    def __init__(self):
+    __slots__ = ('line_dict', 'call_dict', 'filename', 'global_dict')
+    def __init__(self, filename, global_dict):
+        self.filename = filename
+        self.global_dict = global_dict
         self.line_dict = {}
         self.call_dict = defaultdict(lambda: [0, 0])
 
@@ -131,7 +133,7 @@ class Profile(object):
     discount_stack = LocalDescriptor(partial(deque, [0]))
 
     def __init__(self, verbose=False):
-        self.file_dict = defaultdict(_FileTiming)
+        self.file_dict = {}
         self.total_time = 0
         if verbose:
             self._global_trace = _verboseProfileDecorator(self)(
@@ -203,6 +205,15 @@ class Profile(object):
             self.discount_stack.append(0)
         return local_trace
 
+    def _getFileTiming(self, frame):
+        try:
+            return self.file_dict[id(frame.f_globals)]
+        except KeyError:
+            global_dict = frame.f_globals
+            self.file_dict[id(global_dict)] = file_timing = _FileTiming(
+                frame.f_code.co_filename, global_dict)
+            return file_timing
+
     def _local_trace(self, frame, event, arg):
         if event == 'line' or event == 'return':
             event_time = time()
@@ -223,8 +234,7 @@ class Profile(object):
                 if discount_time:
                     duration -= discount_time
                     self.discount_stack[-1] = 0
-                code = frame.f_code
-                self.file_dict[code.co_filename].hit(code, old_line,
+                self._getFileTiming(frame).hit(frame.f_code, old_line,
                     duration)
             if event == 'line':
                 stack_entry[1] = frame.f_lineno
@@ -235,9 +245,15 @@ class Profile(object):
                 inclusive_duration = event_time - call_time
                 self.discount_stack[-1] += inclusive_duration
                 caller_frame = frame.f_back
-                self.file_dict[caller_frame.f_code.co_filename].call(
+                self._getFileTiming(caller_frame).call(
                     caller_frame.f_lineno, frame.f_code, inclusive_duration)
         return self._local_trace
+
+    def _getFilename(self, file_timing):
+        """
+        Overload in subclasses to customise filename generation.
+        """
+        return file_timing.name
 
     def getFilenameSet(self):
         """
@@ -247,26 +263,42 @@ class Profile(object):
         co_filename, linecache module and PEP302. It may not be a valid
         filesystem path.
         """
-        result = set(self.file_dict)
+        result = set(self._getFilename(x) for x in self.file_dict.itervalues())
         # Ignore profiling code
         result.discard(__file__)
         return result
 
-    def _getFileNameList(self, filename):
-        file_dict = self.file_dict
+    def _getFileIdentList(self, filename):
         if filename is None:
-            return sorted(self.getFilenameSet(), reverse=True,
-                key=lambda x: file_dict[x].getTotalTime())
-        elif isinstance(filename, basestring):
-            return [filename]
-        return filename
+            cond = lambda x: False
+            file_ident_dict = {}
+        else:
+            file_ident_dict = OrderedDict()
+            if isinstance(filename, basestring):
+                cond = lambda x: x != filename
+            else:
+                cond = lambda x: x not in filename
+        file_dict = self.file_dict
+        for ident, file_timing in file_dict.iteritems():
+            name = self._getFilename(file_timing)
+            if cond(name):
+                continue
+            if name in file_ident_dict:
+                name += '(@%x)' % id(file_timing.global_dict)
+            file_ident_dict[name] = ident
+        result = file_ident_dict.iteritems()
+        if filename is None:
+            result = sorted(result, reverse=True,
+                key=lambda x: file_dict[x[1]].getTotalTime())
+        return result
 
-    def _iterFile(self, name):
+    def _iterFile(self, ident):
         lineno = 0
-        file_timing = self.file_dict[name]
+        file_timing = self.file_dict[ident]
         while True:
             lineno += 1
-            line = linecache.getline(name, lineno)
+            line = linecache.getline(file_timing.filename, lineno,
+                file_timing.global_dict)
             func, firstlineno, hits, duration = file_timing.getHitStatsFor(
                 lineno)
             if not line:
@@ -295,12 +327,12 @@ class Profile(object):
         print >> out, 'event: usphit :us/hit'
         print >> out, 'events: hits us usphit'
         file_dict = self.file_dict
-        for name in self._getFileNameList(filename):
+        for name, ident in self._getFileIdentList(filename):
             print >> out, 'fl=%s' % name
             funcname = None
-            call_list_by_line = file_dict[name].getCallListByLine()
+            call_list_by_line = file_dict[ident].getCallListByLine()
             for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
-                    name):
+                    ident):
                 if not hits:
                     continue
                 if funcname != func:
@@ -340,8 +372,8 @@ class Profile(object):
         print >> out, 'Total duration: %gs' % total_time
         if not total_time:
             return
-        for name in self._getFileNameList(filename):
-            file_timing = file_dict[name]
+        for name, ident in self._getFileIdentList(filename):
+            file_timing = file_dict[ident]
             file_total_time = file_timing.getTotalTime()
             call_list_by_line = file_timing.getCallListByLine()
             print >> out, 'File:', name
@@ -349,7 +381,7 @@ class Profile(object):
                 file_total_time * 100 / total_time)
             print >> out, _ANNOTATE_HEADER
             print >> out, _ANNOTATE_HORIZONTAL_LINE
-            for lineno, _, _, hits, duration, line in self._iterFile(name):
+            for lineno, _, _, hits, duration, line in self._iterFile(ident):
                 if hits:
                     time_per_hit = duration / hits
                 else:
