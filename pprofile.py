@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from collections import defaultdict, deque, OrderedDict
+from collections import defaultdict, deque
 from functools import partial, wraps
 from time import time
 from warnings import warn
@@ -16,8 +16,10 @@ def _getFuncOrFile(func, module, line):
         return '%s:%s' % (func, line)
 
 class _FileTiming(object):
-    __slots__ = ('line_dict', 'call_dict', 'filename', 'global_dict')
-    def __init__(self, filename, global_dict):
+    __slots__ = ('line_dict', 'call_dict', 'filename', 'global_dict',
+        'raw_filename')
+    def __init__(self, raw_filename, filename, global_dict):
+        self.raw_filename = raw_filename
         self.filename = filename
         self.global_dict = global_dict
         self.line_dict = {}
@@ -32,8 +34,8 @@ class _FileTiming(object):
             entry[1] += 1
             entry[2] += duration
 
-    def call(self, line, callee, duration):
-        entry = self.call_dict[(line, callee)]
+    def call(self, line, callee_file_timing, callee, duration):
+        entry = self.call_dict[(line, callee_file_timing.filename, callee)]
         entry[0] += 1
         entry[1] += duration
 
@@ -48,12 +50,13 @@ class _FileTiming(object):
 
     def getCallListByLine(self):
         result = {}
-        for (line, callee), (hit, duration) in self.call_dict.iteritems():
+        for (line, name, callee), (hit, duration) in \
+                self.call_dict.iteritems():
             if line in result: # Miss more likely than a hit.
                 entry = result[line]
             else:
                 result[line] = entry = []
-            entry.append((hit, duration, callee.co_filename,
+            entry.append((hit, duration, name,
                 callee.co_firstlineno, callee.co_name))
         return result
 
@@ -134,6 +137,7 @@ class Profile(object):
 
     def __init__(self, verbose=False):
         self.file_dict = {}
+        self.global_dict = {}
         self.total_time = 0
         if verbose:
             self._global_trace = _verboseProfileDecorator(self)(
@@ -207,11 +211,20 @@ class Profile(object):
 
     def _getFileTiming(self, frame):
         try:
-            return self.file_dict[id(frame.f_globals)]
+            return self.global_dict[id(frame.f_globals)]
         except KeyError:
-            global_dict = frame.f_globals
-            self.file_dict[id(global_dict)] = file_timing = _FileTiming(
-                frame.f_code.co_filename, global_dict)
+            f_globals = frame.f_globals
+            raw_filename = frame.f_code.co_filename
+            name = self._getFilename(frame.f_code.co_filename, f_globals)
+            try:
+                file_timing = self.file_dict[name]
+            except KeyError:
+                self.file_dict[name] = file_timing = _FileTiming(
+                    raw_filename,
+                    name,
+                    f_globals,
+                )
+            self.global_dict[id(f_globals)] = file_timing
             return file_timing
 
     def _local_trace(self, frame, event, arg):
@@ -246,14 +259,15 @@ class Profile(object):
                 self.discount_stack[-1] += inclusive_duration
                 caller_frame = frame.f_back
                 self._getFileTiming(caller_frame).call(
-                    caller_frame.f_lineno, frame.f_code, inclusive_duration)
+                    caller_frame.f_lineno, self._getFileTiming(frame),
+                    frame.f_code, inclusive_duration)
         return self._local_trace
 
-    def _getFilename(self, file_timing):
+    def _getFilename(self, filename, f_globals):
         """
         Overload in subclasses to customise filename generation.
         """
-        return file_timing.filename
+        return filename
 
     def getFilenameSet(self):
         """
@@ -263,41 +277,26 @@ class Profile(object):
         co_filename, linecache module and PEP302. It may not be a valid
         filesystem path.
         """
-        result = set(self._getFilename(x) for x in self.file_dict.itervalues())
+        result = set(self.file_dict)
         # Ignore profiling code
         result.discard(__file__)
         return result
 
-    def _getFileIdentList(self, filename):
-        if filename is None:
-            cond = lambda x: False
-            file_ident_dict = {}
-        else:
-            file_ident_dict = OrderedDict()
-            if isinstance(filename, basestring):
-                cond = lambda x: x != filename
-            else:
-                cond = lambda x: x not in filename
+    def _getFileNameList(self, filename):
         file_dict = self.file_dict
-        for ident, file_timing in file_dict.iteritems():
-            name = self._getFilename(file_timing)
-            if cond(name):
-                continue
-            if name in file_ident_dict:
-                name += '(@%x)' % id(file_timing.global_dict)
-            file_ident_dict[name] = ident
-        result = file_ident_dict.iteritems()
         if filename is None:
-            result = sorted(result, reverse=True,
-                key=lambda x: file_dict[x[1]].getTotalTime())
-        return result
+            return sorted(self.getFilenameSet(), reverse=True,
+                key=lambda x: file_dict[x].getTotalTime())
+        elif isinstance(filename, basestring):
+            return [filename]
+        return filename
 
-    def _iterFile(self, ident):
+    def _iterFile(self, name):
         lineno = 0
-        file_timing = self.file_dict[ident]
+        file_timing = self.file_dict[name]
         while True:
             lineno += 1
-            line = linecache.getline(file_timing.filename, lineno,
+            line = linecache.getline(file_timing.raw_filename, lineno,
                 file_timing.global_dict)
             func, firstlineno, hits, duration = file_timing.getHitStatsFor(
                 lineno)
@@ -327,12 +326,12 @@ class Profile(object):
         print >> out, 'event: usphit :us/hit'
         print >> out, 'events: hits us usphit'
         file_dict = self.file_dict
-        for name, ident in self._getFileIdentList(filename):
+        for name in self._getFileNameList(filename):
             print >> out, 'fl=%s' % name
             funcname = False
-            call_list_by_line = file_dict[ident].getCallListByLine()
+            call_list_by_line = file_dict[name].getCallListByLine()
             for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
-                    ident):
+                    name):
                 call_list = call_list_by_line.get(lineno, ())
                 if not hits and not call_list:
                   continue
@@ -372,8 +371,8 @@ class Profile(object):
         print >> out, 'Total duration: %gs' % total_time
         if not total_time:
             return
-        for name, ident in self._getFileIdentList(filename):
-            file_timing = file_dict[ident]
+        for name in self._getFileNameList(filename):
+            file_timing = file_dict[name]
             file_total_time = file_timing.getTotalTime()
             call_list_by_line = file_timing.getCallListByLine()
             print >> out, 'File:', name
@@ -381,7 +380,7 @@ class Profile(object):
                 file_total_time * 100 / total_time)
             print >> out, _ANNOTATE_HEADER
             print >> out, _ANNOTATE_HORIZONTAL_LINE
-            for lineno, _, _, hits, duration, line in self._iterFile(ident):
+            for lineno, _, _, hits, duration, line in self._iterFile(name):
                 if hits:
                     time_per_hit = duration / hits
                 else:
