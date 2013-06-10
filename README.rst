@@ -114,6 +114,48 @@ Generating callgrind_-format output in a file instead of stdout::
 
 Can be opened, for example, with kcachegrind_.
 
+Advanced
+--------
+
+*Warning*: API described here may change as I get a better understanding of what
+is really needed (are filename + globals enough ? maybe the whole frame is
+needed ?).
+
+Both classes can be subclassed to customise file name generation. This is for
+example useful when profiling Zope's Python Scripts. The following can be used
+to allow profiling from restricted environment::
+
+  import pprofile
+  class ZopeProfiler(pprofile.Profile):
+      __allow_access_to_unprotected_subobjects__ = 1
+      def _getFilename(self, filename, f_globals):
+          if 'Script (Python)' in filename and 'script' in f_globals:
+              filename = f_globals['script'].id
+          return filename
+
+You will also want to monkey-patch linecache so that it becomes able to fetch
+source code from Python Scripts::
+
+  import linecache
+  linecache_getlines = linecache.getlines
+  def getlines(filename, module_globals=None):
+      if module_globals is not None and \
+              'Script (Python)' in filename and \
+              'script' in module_globals:
+          return module_globals['script'].body().splitlines()
+      return linecache_getlines(filename, module_globals)
+  linecache.getlines = getlines
+
+Of course, allowing such access from Restricted Python has **security
+implications**, depending on who has access to it. You decide and take
+responsability.
+
+Profiling such level of complex code as Zope (bonus points when profiling
+template rendering) is not an easy task. Tweak proposed ZopeProfiler class
+as you see fit for your profiling case - this is one of the reasons why no
+such implementation is proposed ready-to-use (I don't see a one-size-fits-all
+for this yet).
+
 Thread-aware profiling
 ======================
 
