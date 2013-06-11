@@ -10,7 +10,7 @@ import sys
 import threading
 
 def _getFuncOrFile(func, module, line):
-    if func == '<module>':
+    if func == '<module>' or func is None:
         return module
     else:
         return '%s:%s' % (func, line)
