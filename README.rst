@@ -110,7 +110,7 @@ code, as a result).
 
 Generating callgrind_-format output in a file instead of stdout::
 
-  $ pprofile --format callgrind --out treads.log demo/threads.py
+  $ pprofile --format callgrind --out callgrind.out.threads demo/threads.py
 
 Can be opened, for example, with kcachegrind_.
 
