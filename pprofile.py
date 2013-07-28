@@ -481,8 +481,8 @@ class ThreadProfile(Profile):
     trace event (typically a "line" event) before they can notice the
     disabling.
     """
-    def __init__(self, verbose=False):
-        super(ThreadProfile, self).__init__(verbose=verbose)
+    def __init__(self, **kw):
+        super(ThreadProfile, self).__init__(**kw)
         self._local_trace_backup = self._local_trace
 
     def _enable(self):
