@@ -248,13 +248,17 @@ class ProfileBase(object):
         print >> out, 'Total duration: %gs' % total_time
         if not total_time:
             return
+        def percent(value, scale):
+            if scale == 0:
+                return 0
+            return value * 100 / float(scale)
         for name in self._getFileNameList(filename):
             file_timing = file_dict[name]
             file_total_time = file_timing.getTotalTime()
             call_list_by_line = file_timing.getCallListByLine()
             print >> out, 'File:', name
             print >> out, 'File duration: %gs (%.2f%%)' % (file_total_time,
-                file_total_time * 100 / total_time)
+                percent(file_total_time, total_time))
             print >> out, _ANNOTATE_HEADER
             print >> out, _ANNOTATE_HORIZONTAL_LINE
             for lineno, _, _, hits, duration, line in self._iterFile(name):
@@ -267,7 +271,7 @@ class ProfileBase(object):
                     'hits': hits,
                     'time': duration,
                     'time_per_hit': time_per_hit,
-                    'percent': duration * 100 / total_time,
+                    'percent': percent(duration, total_time),
                     'line': line,
                 },
                 for hits, duration, callee_file, callee_line, callee_name in \
@@ -276,7 +280,7 @@ class ProfileBase(object):
                         'hits': hits,
                         'time': duration,
                         'time_per_hit': duration / hits,
-                        'percent': duration * 100 / total_time,
+                        'percent': percent(duration, total_time),
                         'callee_file': callee_file,
                         'callee_line': callee_line,
                         'callee_name': callee_name,
