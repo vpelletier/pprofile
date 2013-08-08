@@ -95,14 +95,23 @@ class LocalDescriptor(threading.local):
         except AttributeError:
             self.func
 
-_ANNOTATE_HEADER = '%6s|%10s|%13s|%13s|%7s|Source code' % (
-    'Line #', 'Hits', 'Time', 'Time per hit', '%')
+_ANNOTATE_HEADER = \
+    '%6s|%10s|' \
+    '%13s|%13s|%7s|' \
+    'Source code' % (
+        'Line #', 'Hits',
+        'Time', 'Time per hit', '%',
+    )
 _ANNOTATE_HORIZONTAL_LINE = ''.join(x == '|' and '+' or '-'
     for x in _ANNOTATE_HEADER)
-_ANNOTATE_FORMAT = '%(lineno)6i|%(hits)10i|%(time)13g|%(time_per_hit)13g|' \
-    '%(percent)6.2f%%|%(line)s'
-_ANNOTATE_CALL_FORMAT = '(call)|%(hits)10i|%(time)13g|%(time_per_hit)13g|' \
-        '%(percent)6.2f%%|# %(callee_file)s:%(callee_line)s %(callee_name)s'
+_ANNOTATE_FORMAT = \
+    '%(lineno)6i|%(hits)10i|' \
+    '%(time)13g|%(time_per_hit)13g|%(percent)6.2f%%|' \
+    '%(line)s'
+_ANNOTATE_CALL_FORMAT = \
+    '(call)|%(hits)10i|' \
+    '%(time)13g|%(time_per_hit)13g|%(percent)6.2f%%|' \
+    '# %(callee_file)s:%(callee_line)s %(callee_name)s'
 
 def _initStack():
     return deque([[time(), None, None]])
