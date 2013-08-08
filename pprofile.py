@@ -116,98 +116,11 @@ def _verboseProfileDecorator(self):
         return wrapper
     return decorator
 
-class Profile(object):
-    """
-    Deterministic, recursive, line-granularity, profiling class.
-
-    Does not require any source code change to work.
-    If the performance hit is too large, it can benefit from some
-    integration (calling enable/disable around selected code chunks).
-
-    The sum of time spent in all profiled lines is less than the total
-    profiled time reported. This is (part of) profiling overhead.
-    This also mans that sum of time-spent-on-line percentage is less than 100%.
-
-    All times are "internal time", ie they do not count time spent inside
-    called (profilable, so python) functions.
-    """
-    stack = LocalDescriptor(_initStack)
-    enabled_start = LocalDescriptor(float)
-    discount_stack = LocalDescriptor(partial(deque, [0]))
-
-    def __init__(self, verbose=False):
+class ProfileBase(object):
+    def __init__(self):
         self.file_dict = {}
         self.global_dict = {}
         self.total_time = 0
-        if verbose:
-            self._global_trace = _verboseProfileDecorator(self)(
-                self._global_trace)
-            self._local_trace = _verboseProfileDecorator(self)(
-                self._local_trace)
-
-    def _enable(self):
-        """
-        Overload this method when subclassing. Called before actually
-        enabling trace.
-        """
-        self.enabled_start = time()
-
-    def enable(self):
-        """
-        Enable profiling.
-        """
-        if self.enabled_start:
-            warn('Duplicate "enable" call')
-        else:
-            self._enable()
-            sys.settrace(self._global_trace)
-
-    def _disable(self):
-        """
-        Overload this method when subclassing. Called after actually disabling
-        trace.
-        """
-        self.total_time += time() - self.enabled_start
-        del self.enabled_start
-        del self.stack
-        del self.discount_stack
-
-    def disable(self, threads=True):
-        """
-        Disable profiling.
-        """
-        if self.enabled_start:
-            sys.settrace(None)
-            self._disable()
-        else:
-            warn('Duplicate "disable" call')
-
-    __enter__ = enable
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.disable()
-
-    def _traceEvent(self, frame, event):
-      f_code = frame.f_code
-      lineno = frame.f_lineno
-      print >> sys.stderr, '%10.6f%s%s %s:%s %s+%s %s' % (
-          time() - self.enabled_start,
-          ' ' * len(self.stack),
-          event,
-          f_code.co_filename,
-          lineno,
-          f_code.co_name,
-          lineno - f_code.co_firstlineno,
-          self.discount_stack[-1],
-      )
-
-    def _global_trace(self, frame, event, arg):
-        local_trace = self._local_trace
-        if local_trace is not None:
-            now = time()
-            self.stack.append([now, frame.f_lineno, now])
-            self.discount_stack.append(0)
-        return local_trace
 
     def _getFileTiming(self, frame):
         try:
@@ -226,42 +139,6 @@ class Profile(object):
                 )
             self.global_dict[id(f_globals)] = file_timing
             return file_timing
-
-    def _local_trace(self, frame, event, arg):
-        if event == 'line' or event == 'return':
-            event_time = time()
-            stack = self.stack
-            try:
-                stack_entry = stack[-1]
-            except IndexError:
-                warn('Profiling stack underflow, disabling.')
-                self.disable()
-                return
-            call_time, old_line, old_time = stack_entry
-            try:
-                duration = event_time - old_time
-            except TypeError:
-                pass
-            else:
-                discount_time = self.discount_stack[-1]
-                if discount_time:
-                    duration -= discount_time
-                    self.discount_stack[-1] = 0
-                self._getFileTiming(frame).hit(frame.f_code, old_line,
-                    duration)
-            if event == 'line':
-                stack_entry[1] = frame.f_lineno
-                stack_entry[2] = event_time
-            else:
-                stack.pop()
-                self.discount_stack.pop()
-                inclusive_duration = event_time - call_time
-                self.discount_stack[-1] += inclusive_duration
-                caller_frame = frame.f_back
-                self._getFileTiming(caller_frame).call(
-                    caller_frame.f_lineno, self._getFileTiming(frame),
-                    frame.f_code, inclusive_duration)
-        return self._local_trace
 
     def _getFilename(self, filename, f_globals):
         """
@@ -420,12 +297,8 @@ class Profile(object):
         """
         self.annotate(sys.stdout)
 
-    def run(self, cmd):
-        """Similar to profile.Profile.run ."""
-        import __main__
-        dict = __main__.__dict__
-        return self.runctx(cmd, dict, dict)
-
+class ProfileRunnerBase(object):
+    # profile/cProfile-like API
     def runctx(self, cmd, globals, locals):
         """Similar to profile.Profile.runctx ."""
         with self:
@@ -460,6 +333,140 @@ class Profile(object):
             return self.runfile(open(path, 'rb'), argv, fd_name=path)
         finally:
             sys.path[:] = original_sys_path
+
+class Profile(ProfileBase, ProfileRunnerBase):
+    """
+    Deterministic, recursive, line-granularity, profiling class.
+
+    Does not require any source code change to work.
+    If the performance hit is too large, it can benefit from some
+    integration (calling enable/disable around selected code chunks).
+
+    The sum of time spent in all profiled lines is less than the total
+    profiled time reported. This is (part of) profiling overhead.
+    This also mans that sum of time-spent-on-line percentage is less than 100%.
+
+    All times are "internal time", ie they do not count time spent inside
+    called (profilable, so python) functions.
+    """
+    stack = LocalDescriptor(_initStack)
+    enabled_start = LocalDescriptor(float)
+    discount_stack = LocalDescriptor(partial(deque, [0]))
+
+    def __init__(self, verbose=False):
+        super(Profile, self).__init__()
+        if verbose:
+            self._global_trace = _verboseProfileDecorator(self)(
+                self._global_trace)
+            self._local_trace = _verboseProfileDecorator(self)(
+                self._local_trace)
+
+    def _enable(self):
+        """
+        Overload this method when subclassing. Called before actually
+        enabling trace.
+        """
+        self.enabled_start = time()
+
+    def enable(self):
+        """
+        Enable profiling.
+        """
+        if self.enabled_start:
+            warn('Duplicate "enable" call')
+        else:
+            self._enable()
+            sys.settrace(self._global_trace)
+
+    def _disable(self):
+        """
+        Overload this method when subclassing. Called after actually disabling
+        trace.
+        """
+        self.total_time += time() - self.enabled_start
+        del self.enabled_start
+        del self.stack
+        del self.discount_stack
+
+    def disable(self, threads=True):
+        """
+        Disable profiling.
+        """
+        if self.enabled_start:
+            sys.settrace(None)
+            self._disable()
+        else:
+            warn('Duplicate "disable" call')
+
+    __enter__ = enable
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.disable()
+
+    def _traceEvent(self, frame, event):
+      f_code = frame.f_code
+      lineno = frame.f_lineno
+      print >> sys.stderr, '%10.6f%s%s %s:%s %s+%s %s' % (
+          time() - self.enabled_start,
+          ' ' * len(self.stack),
+          event,
+          f_code.co_filename,
+          lineno,
+          f_code.co_name,
+          lineno - f_code.co_firstlineno,
+          self.discount_stack[-1],
+      )
+
+    def _global_trace(self, frame, event, arg):
+        local_trace = self._local_trace
+        if local_trace is not None:
+            now = time()
+            self.stack.append([now, frame.f_lineno, now])
+            self.discount_stack.append(0)
+        return local_trace
+
+    def _local_trace(self, frame, event, arg):
+        if event == 'line' or event == 'return':
+            event_time = time()
+            stack = self.stack
+            try:
+                stack_entry = stack[-1]
+            except IndexError:
+                warn('Profiling stack underflow, disabling.')
+                self.disable()
+                return
+            call_time, old_line, old_time = stack_entry
+            try:
+                duration = event_time - old_time
+            except TypeError:
+                pass
+            else:
+                discount_time = self.discount_stack[-1]
+                if discount_time:
+                    duration -= discount_time
+                    self.discount_stack[-1] = 0
+                self._getFileTiming(frame).hit(frame.f_code, old_line,
+                    duration)
+            if event == 'line':
+                stack_entry[1] = frame.f_lineno
+                stack_entry[2] = event_time
+            else:
+                stack.pop()
+                self.discount_stack.pop()
+                inclusive_duration = event_time - call_time
+                self.discount_stack[-1] += inclusive_duration
+                caller_frame = frame.f_back
+                self._getFileTiming(caller_frame).call(
+                    caller_frame.f_lineno, self._getFileTiming(frame),
+                    frame.f_code, inclusive_duration)
+        return self._local_trace
+
+    # profile/cProfile-like API
+    def run(self, cmd):
+        """Similar to profile.Profile.run ."""
+        import __main__
+        dict = __main__.__dict__
+        return self.runctx(cmd, dict, dict)
 
 class ThreadProfile(Profile):
     """
