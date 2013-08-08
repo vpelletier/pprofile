@@ -211,7 +211,7 @@ class ProfileBase(object):
                     name):
                 call_list = call_list_by_line.get(lineno, ())
                 if not hits and not call_list:
-                  continue
+                    continue
                 if funcname != func:
                     funcname = func
                     print >> out, 'fn=%s' % _getFuncOrFile(func, name, firstlineno)
@@ -263,12 +263,12 @@ class ProfileBase(object):
                 else:
                     time_per_hit = 0
                 print >> out, _ANNOTATE_FORMAT % {
-                  'lineno': lineno,
-                  'hits': hits,
-                  'time': duration,
-                  'time_per_hit': time_per_hit,
-                  'percent': duration * 100 / total_time,
-                  'line': line,
+                    'lineno': lineno,
+                    'hits': hits,
+                    'time': duration,
+                    'time_per_hit': time_per_hit,
+                    'percent': duration * 100 / total_time,
+                    'line': line,
                 },
                 for hits, duration, callee_file, callee_line, callee_name in \
                         call_list_by_line.get(lineno, ()):
@@ -404,18 +404,18 @@ class Profile(ProfileBase, ProfileRunnerBase):
         self.disable()
 
     def _traceEvent(self, frame, event):
-      f_code = frame.f_code
-      lineno = frame.f_lineno
-      print >> sys.stderr, '%10.6f%s%s %s:%s %s+%s %s' % (
-          time() - self.enabled_start,
-          ' ' * len(self.stack),
-          event,
-          f_code.co_filename,
-          lineno,
-          f_code.co_name,
-          lineno - f_code.co_firstlineno,
-          self.discount_stack[-1],
-      )
+        f_code = frame.f_code
+        lineno = frame.f_lineno
+        print >> sys.stderr, '%10.6f%s%s %s:%s %s+%s %s' % (
+            time() - self.enabled_start,
+            ' ' * len(self.stack),
+            event,
+            f_code.co_filename,
+            lineno,
+            f_code.co_name,
+            lineno - f_code.co_firstlineno,
+            self.discount_stack[-1],
+        )
 
     def _global_trace(self, frame, event, arg):
         local_trace = self._local_trace
