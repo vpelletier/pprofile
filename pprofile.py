@@ -8,6 +8,7 @@ import linecache
 import os
 import sys
 import threading
+import thread
 
 def _getFuncOrFile(func, module, line):
     if func == '<module>' or func is None:
@@ -502,6 +503,122 @@ class ThreadProfile(Profile):
         threading.settrace(None)
         self._local_trace = None
 
+class StatisticalProfile(ProfileBase):
+    """
+    Statistical profiling class.
+
+    This class does not gather its own samples by itself.
+    Instead, it must be provided with call stacks (as returned by
+    sys._getframe() or sys._current_frames()).
+    """
+    def __init__(self):
+        super(StatisticalProfile, self).__init__()
+        self.total_time = 1
+
+    def sample(self, frame):
+        getFileTiming = self._getFileTiming
+        called_timing = getFileTiming(frame)
+        called_code = frame.f_code
+        called_timing.hit(called_code, frame.f_lineno, 0)
+        while True:
+            caller = frame.f_back
+            if caller is None:
+                break
+            caller_timing = getFileTiming(caller)
+            caller_line = caller.f_lineno
+            caller_code = caller.f_code
+            caller_timing.hit(caller_code, caller_line, 0)
+            caller_timing.call(caller_line, called_timing, called_code, 0)
+            called_timing = caller_timing
+            frame = caller
+            called_code = caller_code
+
+class StatisticalThread(threading.Thread, ProfileRunnerBase):
+    """
+    Usage in a nutshell:
+      profiler = StatisticalProfile()
+      pt = StatisticalThread(profiler)
+      with pt:
+        # do stuff
+      pt.stop()
+      pt.join()
+      profiler.print_stats()
+    """
+    _test = None
+
+    def __init__(self, profiler, period=.001, single=True, group=None, name=None):
+        """
+        period (float)
+          How many seconds to wait between consecutive samples.
+          The smaller, the more profiling overhead, but the faster results
+          become meaningful.
+          The larger, the less profiling overhead, but requires long profiling
+          session to get meaningful results.
+        single (bool)
+          Profile only the thread which created this instance.
+        group, name
+          See Python's threading.Thread API.
+        """
+        if single:
+            self._test = lambda x, ident=thread.get_ident(): ident == x
+        super(StatisticalThread, self).__init__(
+            group=group,
+            name=name,
+        )
+        self._stop_event = threading.Event()
+        self._period = period
+        self.profiler = StatisticalProfile()
+        self.daemon = True
+
+    def __enter__(self):
+        self.start()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+        self.join()
+
+    def start(self):
+        self._can_run = True
+        super(StatisticalThread, self).start()
+
+    def stop(self):
+        """
+        Request thread to stop.
+        Does not wait for actual termination (use join() method).
+        """
+        if self.is_alive():
+            self._can_run = False
+            self._stop_event.set()
+
+    def run(self):
+        current_frames = sys._current_frames
+        test = self._test
+        if test is None:
+            test = self.ident.__cmp__
+        sample = self.profiler.sample
+        stop_event = self._stop_event
+        period = self._period
+        wait = partial(stop_event.wait, period)
+        while self._can_run:
+            for ident, frame in current_frames().iteritems():
+                if test(ident):
+                    sample(frame)
+            frame = None
+            wait()
+        stop_event.clear()
+
+    def callgrind(self, *args, **kw):
+        return self.profiler.callgrind(*args, **kw)
+
+    def annotate(self, *args, **kw):
+        return self.profiler.annotate(*args, **kw)
+
+    def dump_stats(self, *args, **kw):
+        return self.profiler.dump_stats(*args, **kw)
+
+    def print_stats(self, *args, **kw):
+        return self.profiler.print_stats(*args, **kw)
+
 # profile/cProfile-like API (no sort parameter !)
 def _run(threads, verbose, func_name, filename, *args, **kw):
     if threads:
@@ -560,13 +677,23 @@ def main():
         help='Format in which output is generated. Default: %(default)s')
     parser.add_argument('-v', '--verbose', action='store_true',
         help='Enable profiler internal tracing output. Cryptic and verbose.')
+    parser.add_argument('-s', '--statistic', default=0, type=float,
+        help='Use this period for statistic profiling, or use deterministic '
+        'profiling when 0.')
     options, args = parser.parse_known_args()
     args.insert(0, options.script)
-    if options.threads:
-        klass = ThreadProfile
+    if options.statistic:
+        prof = StatisticalThread(
+            profiler=StatisticalProfile(),
+            period=options.statistic,
+            single=not options.threads,
+        )
     else:
-        klass = Profile
-    prof = klass(verbose=options.verbose)
+        if options.threads:
+            klass = ThreadProfile
+        else:
+            klass = Profile
+        prof = klass(verbose=options.verbose)
     try:
         prof.runpath(options.script, args)
     finally:
