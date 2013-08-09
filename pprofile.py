@@ -41,11 +41,11 @@ class _FileTiming(object):
 
     def getHitStatsFor(self, line):
         code, line, duration = self.line_dict.get(line, (None, 0, 0))
-        if code is not None:
+        if code is None:
+            firstlineno = None
+        else:
             firstlineno = code.co_firstlineno
             code = code.co_name
-        else:
-            firstlineno = None
         return code, firstlineno, line, duration
 
     def getCallListByLine(self):
