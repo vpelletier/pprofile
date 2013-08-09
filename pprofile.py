@@ -49,15 +49,13 @@ class _FileTiming(object):
         return code, firstlineno, line, duration
 
     def getCallListByLine(self):
-        result = {}
+        result = defaultdict(list)
         for (line, name, callee), (hit, duration) in \
                 self.call_dict.iteritems():
-            if line in result: # Miss more likely than a hit.
-                entry = result[line]
-            else:
-                result[line] = entry = []
-            entry.append((hit, duration, name,
-                callee.co_firstlineno, callee.co_name))
+            result[line].append((
+                hit, duration,
+                name, callee.co_firstlineno, callee.co_name,
+            ))
         return result
 
     def getTotalTime(self):
