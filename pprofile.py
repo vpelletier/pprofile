@@ -24,7 +24,7 @@ class _FileTiming(object):
         self.filename = filename
         self.global_dict = global_dict
         self.line_dict = {}
-        self.call_dict = defaultdict(lambda: [0, 0])
+        self.call_dict = {}
 
     def hit(self, code, line, duration):
         try:
@@ -35,10 +35,15 @@ class _FileTiming(object):
             entry[1] += 1
             entry[2] += duration
 
-    def call(self, line, callee_file_timing, callee, duration):
-        entry = self.call_dict[(line, callee_file_timing.filename, callee)]
-        entry[0] += 1
-        entry[1] += duration
+    def call(self, code, line, callee_file_timing, callee, duration):
+        key = (line, callee_file_timing.filename, callee)
+        try:
+            entry = self.call_dict[key]
+        except KeyError:
+            self.call_dict[key] = [code, 1, duration]
+        else:
+            entry[1] += 1
+            entry[2] += duration
 
     def getHitStatsFor(self, line):
         code, line, duration = self.line_dict.get(line, (None, 0, 0))
@@ -51,9 +56,10 @@ class _FileTiming(object):
 
     def getCallListByLine(self):
         result = defaultdict(list)
-        for (line, name, callee), (hit, duration) in \
+        for (line, name, callee), (code, hit, duration) in \
                 self.call_dict.iteritems():
             result[line].append((
+                code.co_name, code.co_firstlineno,
                 hit, duration,
                 name, callee.co_firstlineno, callee.co_name,
             ))
@@ -176,8 +182,9 @@ class ProfileBase(object):
             return [filename]
         return filename
 
-    def _iterFile(self, name):
+    def _iterFile(self, name, call_list_by_line):
         lineno = 0
+        last_call_line = max(call_list_by_line)
         file_timing = self.file_dict[name]
         while True:
             lineno += 1
@@ -185,7 +192,15 @@ class ProfileBase(object):
                 file_timing.global_dict)
             func, firstlineno, hits, duration = file_timing.getHitStatsFor(
                 lineno)
-            if not line:
+            if func is None:
+                # In case the line has no hit but has a call (happens in
+                # statistical profiling, as hits are on leaves only).
+                # func & firstlineno are expected to be constant on a
+                # given line (accumulated data is redundant)
+                call_list = call_list_by_line.get(lineno)
+                if call_list:
+                    func, firstlineno = call_list[0][:2]
+            if not line and lineno > last_call_line:
                 if hits == 0:
                     break
                 # Line exists in stats, but not in file. Happens on 1st
@@ -216,10 +231,12 @@ class ProfileBase(object):
             funcname = False
             call_list_by_line = file_dict[name].getCallListByLine()
             for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
-                    name):
+                    name, call_list_by_line):
                 call_list = call_list_by_line.get(lineno, ())
                 if not hits and not call_list:
                     continue
+                if func is None:
+                    func, firstlineno = call_list[0][:2]
                 if funcname != func:
                     funcname = func
                     print >> out, 'fn=%s' % _getFuncOrFile(func, name, firstlineno)
@@ -229,8 +246,8 @@ class ProfileBase(object):
                 else:
                     ticksperhit = ticks / hits
                 print >> out, lineno, hits, ticks, int(ticksperhit)
-                for hits, duration, callee_file, callee_line, callee_name in \
-                        sorted(call_list, key=lambda x: x[2:4]):
+                for _, _, hits, duration, callee_file, callee_line, \
+                        callee_name in sorted(call_list, key=lambda x: x[2:4]):
                     print >> out, 'cfl=%s' % callee_file
                     print >> out, 'cfn=%s' % _getFuncOrFile(callee_name,
                         callee_file, callee_line)
@@ -269,7 +286,8 @@ class ProfileBase(object):
                 percent(file_total_time, total_time))
             print >> out, _ANNOTATE_HEADER
             print >> out, _ANNOTATE_HORIZONTAL_LINE
-            for lineno, _, _, hits, duration, line in self._iterFile(name):
+            for lineno, _, _, hits, duration, line in self._iterFile(name,
+                    call_list_by_line):
                 if hits:
                     time_per_hit = duration / hits
                 else:
@@ -282,8 +300,8 @@ class ProfileBase(object):
                     'percent': percent(duration, total_time),
                     'line': line,
                 },
-                for hits, duration, callee_file, callee_line, callee_name in \
-                        call_list_by_line.get(lineno, ()):
+                for _, _, hits, duration, callee_file, callee_line, \
+                        callee_name in call_list_by_line.get(lineno, ()):
                     print >> out, _ANNOTATE_CALL_FORMAT % {
                         'hits': hits,
                         'time': duration,
@@ -469,8 +487,10 @@ class Profile(ProfileBase, ProfileRunnerBase):
                 self.discount_stack[-1] += inclusive_duration
                 caller_frame = frame.f_back
                 self._getFileTiming(caller_frame).call(
-                    caller_frame.f_lineno, self._getFileTiming(frame),
-                    frame.f_code, inclusive_duration)
+                    caller_frame.f_code, caller_frame.f_lineno,
+                    self._getFileTiming(frame),
+                    frame.f_code, inclusive_duration,
+                )
         return self._local_trace
 
     # profile/cProfile-like API
@@ -525,10 +545,9 @@ class StatisticalProfile(ProfileBase):
             if caller is None:
                 break
             caller_timing = getFileTiming(caller)
-            caller_line = caller.f_lineno
             caller_code = caller.f_code
-            caller_timing.hit(caller_code, caller_line, 0)
-            caller_timing.call(caller_line, called_timing, called_code, 0)
+            caller_timing.call(caller_code, caller.f_lineno,
+                called_timing, called_code, 0)
             called_timing = caller_timing
             frame = caller
             called_code = caller_code
