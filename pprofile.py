@@ -564,6 +564,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
       profiler.print_stats()
     """
     _test = None
+    _start_time = None
 
     def __init__(self, profiler, period=.001, single=True, group=None, name=None):
         """
@@ -586,17 +587,12 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         )
         self._stop_event = threading.Event()
         self._period = period
-        self.profiler = StatisticalProfile()
+        self.profiler = profiler = StatisticalProfile()
+        profiler.total_time = 0
         self.daemon = True
 
-    def __enter__(self):
-        self.start()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
-        self.join()
-
     def start(self):
+        self._start_time = time()
         self._can_run = True
         super(StatisticalThread, self).start()
 
@@ -608,6 +604,16 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         if self.is_alive():
             self._can_run = False
             self._stop_event.set()
+            self.profiler.total_time += time() - self._start_time
+            self._start_time = None
+
+    __enter__ = start
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+        self.profiler.total_time += time() - self._start_time
+        self._start_time = None
+        self.join()
 
     def run(self):
         current_frames = sys._current_frames
