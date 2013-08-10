@@ -1,4 +1,4 @@
-Line-granularity, thread-aware deterministic pure-python profiler
+Line-granularity, thread-aware deterministic and statistic pure-python profiler
 
 Inspired from Robert Kern's line_profiler_ .
 
@@ -113,6 +113,94 @@ Generating callgrind_-format output in a file instead of stdout::
   $ pprofile --format callgrind --out callgrind.out.threads demo/threads.py
 
 Can be opened, for example, with kcachegrind_.
+
+Statistic profiling
+-------------------
+
+Deterministic profiling collects samples on each trigger (per line as in this
+module, or per call in traditional python profiling).
+Statistic profiling, on the other hand, triggers periodically. Samples
+accumulate where execution spends most time.
+As a result:
+
+- output lacks timing information
+
+- profiler overhead can be be balanced at will with measure duration by
+  changing trigger period
+
+- profiling can be turned on an off without having to reach specific points in
+  the call stack
+
+Sample output (standard threading.py trimmed from output for readability)::
+
+  $ pprofile --statistic .01 demo/threads.py
+  Command line: ['demo/threads.py']
+  Total duration: 1.0026s
+  File: demo/threads.py
+  File duration: 0s (0.00%)
+  Line #|      Hits|         Time| Time per hit|      %|Source code
+  ------+----------+-------------+-------------+-------+-----------
+       1|         0|            0|            0|  0.00%|import threading
+       2|         0|            0|            0|  0.00%|import time
+       3|         0|            0|            0|  0.00%|
+       4|         0|            0|            0|  0.00%|def func():
+       5|       288|            0|            0|  0.00%|  time.sleep(1)
+       6|         0|            0|            0|  0.00%|
+       7|         0|            0|            0|  0.00%|def func2():
+       8|         0|            0|            0|  0.00%|  pass
+       9|         0|            0|            0|  0.00%|
+      10|         0|            0|            0|  0.00%|t1 = threading.Thread(target=func)
+      11|         0|            0|            0|  0.00%|t2 = threading.Thread(target=func)
+      12|         0|            0|            0|  0.00%|t1.start()
+      13|         0|            0|            0|  0.00%|t2.start()
+      14|         0|            0|            0|  0.00%|(func(), func2())
+  (call)|        96|            0|            0|  0.00%|# demo/threads.py:4 func
+      15|         0|            0|            0|  0.00%|t1.join()
+      16|         0|            0|            0|  0.00%|t2.join()
+  File: /usr/lib/python2.7/threading.py
+  File duration: 0s (0.00%)
+  Line #|      Hits|         Time| Time per hit|      %|Source code
+  ------+----------+-------------+-------------+-------+-----------
+  [...]
+     308|         0|            0|            0|  0.00%|    def wait(self, timeout=None):
+  [...]
+     338|         0|            0|            0|  0.00%|            if timeout is None:
+     339|         1|            0|            0|  0.00%|                waiter.acquire()
+     340|         0|            0|            0|  0.00%|                if __debug__:
+  [...]
+     600|         0|            0|            0|  0.00%|    def wait(self, timeout=None):
+  [...]
+     617|         0|            0|            0|  0.00%|            if not self.__flag:
+     618|         0|            0|            0|  0.00%|                self.__cond.wait(timeout)
+  (call)|         1|            0|            0|  0.00%|# /usr/lib/python2.7/threading.py:308 wait
+  [...]
+     724|         0|            0|            0|  0.00%|    def start(self):
+  [...]
+     748|         0|            0|            0|  0.00%|        self.__started.wait()
+  (call)|         1|            0|            0|  0.00%|# /usr/lib/python2.7/threading.py:600 wait
+     749|         0|            0|            0|  0.00%|
+     750|         0|            0|            0|  0.00%|    def run(self):
+  [...]
+     760|         0|            0|            0|  0.00%|            if self.__target:
+     761|         0|            0|            0|  0.00%|                self.__target(*self.__args, **self.__kwargs)
+  (call)|       192|            0|            0|  0.00%|# demo/threads.py:4 func
+     762|         0|            0|            0|  0.00%|        finally:
+  [...]
+     767|         0|            0|            0|  0.00%|    def __bootstrap(self):
+  [...]
+     780|         0|            0|            0|  0.00%|        try:
+     781|         0|            0|            0|  0.00%|            self.__bootstrap_inner()
+  (call)|       192|            0|            0|  0.00%|# /usr/lib/python2.7/threading.py:790 __bootstrap_inner
+  [...]
+     790|         0|            0|            0|  0.00%|    def __bootstrap_inner(self):
+  [...]
+     807|         0|            0|            0|  0.00%|            try:
+     808|         0|            0|            0|  0.00%|                self.run()
+  (call)|       192|            0|            0|  0.00%|# /usr/lib/python2.7/threading.py:750 run
+
+Some details are lost (not all executed lines have a non-null hit-count), but
+the hot spot is still easily identifiable in this trivial example, and its call
+stack is still visible.
 
 Advanced
 --------
