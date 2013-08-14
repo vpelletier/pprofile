@@ -611,8 +611,6 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
-        self.profiler.total_time += time() - self._start_time
-        self._start_time = None
         self.join()
 
     def run(self):
