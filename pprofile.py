@@ -620,7 +620,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         current_frames = sys._current_frames
         test = self._test
         if test is None:
-            test = self.ident.__cmp__
+            test = lambda x, ident=self.ident: ident != x
         sample = self.profiler.sample
         stop_event = self._stop_event
         period = self._period
