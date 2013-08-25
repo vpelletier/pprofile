@@ -184,7 +184,10 @@ class ProfileBase(object):
 
     def _iterFile(self, name, call_list_by_line):
         lineno = 0
-        last_call_line = max(call_list_by_line)
+        if call_list_by_line:
+            last_call_line = max(call_list_by_line)
+        else:
+            last_call_line = 0
         file_timing = self.file_dict[name]
         while True:
             lineno += 1
