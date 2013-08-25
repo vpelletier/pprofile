@@ -11,3 +11,6 @@ script:
   - pprofile --statistic .01 demo/threads.py
   - demo/embedded.py
   - pprofile demo/threads.py
+  - pprofile demo/empty.py
+  - pprofile --format callgrind demo/empty.py
+  - pprofile --statistic .01 demo/empty.py
