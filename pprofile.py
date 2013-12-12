@@ -695,8 +695,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('script', help='Python script to execute (optionaly '
         'followed by its arguments)')
-    parser.add_argument('-o', '--out', help='Write annotated sources to this '
-        'file. Defaults to stdout.')
+    parser.add_argument('-o', '--out', default='-',
+        help='Write annotated sources to this file. Defaults to stdout.')
     parser.add_argument('-t', '--threads', default=1, type=int, help='If '
         'non-zero, trace threads spawned by program. Default: %(default)s')
     parser.add_argument('-f', '--format', default='text', choices=format_dict,
@@ -723,7 +723,7 @@ def main():
     try:
         prof.runpath(options.script, args)
     finally:
-        if options.out is None:
+        if options.out == '-':
             out = sys.stdout
             close = lambda: None
         else:
