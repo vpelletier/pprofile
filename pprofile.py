@@ -221,6 +221,14 @@ class ProfileBase(object):
           Note: hit count is not inclusive, in that it is not the sum of all
           hits inside that call.
         Time unit: microsecond (1e-6 second).
+        out (file-ish opened for writing)
+            Destination of callgrind profiling data.
+        filename (str, list of str)
+            If provided, dump stats for given source file(s) only.
+            By default, list for all known files.
+        commandline (anything with __str__)
+            If provided, will be output as the command line used to generate
+            this profiling data.
         """
         print >> out, 'version: 1'
         if commandline is not None:
@@ -262,12 +270,15 @@ class ProfileBase(object):
         """
         Dump annotated source code with current profiling statistics to "out"
         file.
+        Time unit: second.
         out (file-ish opened for writing)
             Destination of annotated sources.
         filename (str, list of str)
             If provided, dump stats for given source file(s) only.
             By default, list for all known files.
-        Time unit: second.
+        commandline (anything with __str__)
+            If provided, will be output as the command line used to generate
+            this annotation.
         """
         file_dict = self.file_dict
         total_time = self.total_time
