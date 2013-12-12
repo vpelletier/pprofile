@@ -699,8 +699,9 @@ def main():
         help='Write annotated sources to this file. Defaults to stdout.')
     parser.add_argument('-t', '--threads', default=1, type=int, help='If '
         'non-zero, trace threads spawned by program. Default: %(default)s')
-    parser.add_argument('-f', '--format', default='text', choices=format_dict,
-        help='Format in which output is generated. Default: %(default)s')
+    parser.add_argument('-f', '--format', choices=format_dict,
+        help='Format in which output is generated. If not set, auto-detected '
+        'from filename if provided, falling back to "text".')
     parser.add_argument('-v', '--verbose', action='store_true',
         help='Enable profiler internal tracing output. Cryptic and verbose.')
     parser.add_argument('-s', '--statistic', default=0, type=float,
@@ -708,6 +709,11 @@ def main():
         'profiling when 0.')
     options, args = parser.parse_known_args()
     args.insert(0, options.script)
+    if options.format is None:
+        if options.out.startswith('cachegrind.out.'):
+            options.format = 'callgrind'
+        else:
+            options.format = 'text'
     if options.statistic:
         prof = StatisticalThread(
             profiler=StatisticalProfile(),
