@@ -110,9 +110,23 @@ code, as a result).
 
 Generating callgrind_-format output in a file instead of stdout::
 
-  $ pprofile --format callgrind --out callgrind.out.threads demo/threads.py
+  $ pprofile --format callgrind --out cachegrind.out.threads demo/threads.py
 
-Can be opened, for example, with kcachegrind_.
+Callgrind format is implicitely enabled if ``--out`` basename starts with
+``cachegrind.out.``, so above command can be simplified as::
+
+  $ pprofile --out cachegrind.out.threads demo/threads.py
+
+Callgrind format can be opened, for example, with kcachegrind_.
+
+If you are analysing callgrind traces on a different machine, you may want to
+use the ``--zipfile`` option to generate a zip file containing all files::
+
+  $ pprofile --out cachegrind.out.threads --zipfile threads_source.zip demo/threads.py
+
+Generated files will use relative paths, so you can extract generated archive
+in the same path as profiling result, and kcachegrind will load them - and not
+your system-wide files, which may differ.
 
 Statistic profiling
 -------------------

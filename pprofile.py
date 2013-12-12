@@ -9,6 +9,7 @@ import os
 import sys
 import threading
 import thread
+import zipfile
 
 def _getFuncOrFile(func, module, line):
     if func == '<module>' or func is None:
@@ -212,7 +213,7 @@ class ProfileBase(object):
                 line = os.linesep
             yield lineno, func, firstlineno, hits, duration, line
 
-    def callgrind(self, out, filename=None, commandline=None):
+    def callgrind(self, out, filename=None, commandline=None, relative_path=False):
         """
         Dump statistics in callgrind format.
         Contains:
@@ -229,6 +230,11 @@ class ProfileBase(object):
         commandline (anything with __str__)
             If provided, will be output as the command line used to generate
             this profiling data.
+        relative_path (bool)
+            When True, absolute elements are stripped from path. Useful when
+            maintaining several copies of source trees with their own
+            profiling result, so kcachegrind does not look in system-wide
+            files which may not match with profiled code.
         """
         print >> out, 'version: 1'
         if commandline is not None:
@@ -237,8 +243,13 @@ class ProfileBase(object):
         print >> out, 'event: usphit :us/hit'
         print >> out, 'events: hits us usphit'
         file_dict = self.file_dict
+        if relative_path:
+            convertPath = _relpath
+        else:
+            convertPath = lambda x: x
         for name in self._getFileNameList(filename):
-            print >> out, 'fl=%s' % name
+            printable_name = convertPath(name)
+            print >> out, 'fl=%s' % printable_name
             funcname = False
             call_list_by_line = file_dict[name].getCallListByLine()
             for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
@@ -250,7 +261,8 @@ class ProfileBase(object):
                     func, firstlineno = call_list[0][:2]
                 if funcname != func:
                     funcname = func
-                    print >> out, 'fn=%s' % _getFuncOrFile(func, name, firstlineno)
+                    print >> out, 'fn=%s' % _getFuncOrFile(func,
+                        printable_name, firstlineno)
                 ticks = int(duration * 1000000)
                 if hits == 0:
                     ticksperhit = 0
@@ -259,6 +271,7 @@ class ProfileBase(object):
                 print >> out, lineno, hits, ticks, int(ticksperhit)
                 for _, _, hits, duration, callee_file, callee_line, \
                         callee_name in sorted(call_list, key=lambda x: x[2:4]):
+                    callee_file = convertPath(callee_file)
                     print >> out, 'cfl=%s' % callee_file
                     print >> out, 'cfn=%s' % _getFuncOrFile(callee_name,
                         callee_file, callee_line)
@@ -266,7 +279,7 @@ class ProfileBase(object):
                     duration *= 1000000
                     print >> out, lineno, hits, int(duration), int(duration / hits)
 
-    def annotate(self, out, filename=None, commandline=None):
+    def annotate(self, out, filename=None, commandline=None, relative_path=False):
         """
         Dump annotated source code with current profiling statistics to "out"
         file.
@@ -279,6 +292,8 @@ class ProfileBase(object):
         commandline (anything with __str__)
             If provided, will be output as the command line used to generate
             this annotation.
+        relative_path (bool)
+            For compatibility with callgrind. Ignored.
         """
         file_dict = self.file_dict
         total_time = self.total_time
@@ -325,6 +340,29 @@ class ProfileBase(object):
                         'callee_line': callee_line,
                         'callee_name': callee_name,
                     }
+
+    def _iterRawFile(self, name):
+        lineno = 0
+        file_timing = self.file_dict[name]
+        while True:
+            lineno += 1
+            line = linecache.getline(file_timing.raw_filename, lineno,
+                file_timing.global_dict)
+            if not line:
+                break
+            yield line
+
+    def iterSource(self):
+        """
+        Iterator over all involved files.
+        Yields 2-tuple composed of file path and an iterator over
+        (non-annotated) source lines.
+
+        Can be used to generate a file tree for use with kcachegrind, for
+        example.
+        """
+        for name in self._getFileNameList(None):
+            yield name, self._iterRawFile(name)
 
     # profile/cProfile-like API
     def dump_stats(self, filename):
@@ -697,6 +735,15 @@ def runpath(path, argv, filename=None, threads=True, verbose=False):
     """
     _run(threads, verbose, 'runpath', filename, path, argv)
 
+_allsep = os.sep + (os.altsep or '')
+
+def _relpath(name):
+    """
+    Strip absolute components from path.
+    Inspired from zipfile.write().
+    """
+    return os.path.normpath(os.path.splitdrive(name)[1]).lstrip(_allsep)
+
 def main():
     format_dict = {
         'text': 'annotate',
@@ -708,6 +755,9 @@ def main():
         'followed by its arguments)')
     parser.add_argument('-o', '--out', default='-',
         help='Write annotated sources to this file. Defaults to stdout.')
+    parser.add_argument('-z', '--zipfile',
+        help='Name of a zip file to generate from all involved source files. '
+        'Useful with callgrind output.')
     parser.add_argument('-t', '--threads', default=1, type=int, help='If '
         'non-zero, trace threads spawned by program. Default: %(default)s')
     parser.add_argument('-f', '--format', choices=format_dict,
@@ -721,10 +771,11 @@ def main():
     options, args = parser.parse_known_args()
     args.insert(0, options.script)
     if options.format is None:
-        if options.out.startswith('cachegrind.out.'):
+        if os.path.basename(options.out).startswith('cachegrind.out.'):
             options.format = 'callgrind'
         else:
             options.format = 'text'
+    relative_path = options.format == 'callgrind' and options.zipfile
     if options.statistic:
         prof = StatisticalThread(
             profiler=StatisticalProfile(),
@@ -749,8 +800,25 @@ def main():
         getattr(prof, format_dict[options.format])(
             out,
             commandline=repr(args),
+            relative_path=relative_path,
         )
         close()
+        zip_path = options.zipfile
+        if zip_path:
+            if relative_path:
+                convertPath = _relpath
+            else:
+                convertPath = lambda x: x
+            with zipfile.ZipFile(
+                        zip_path,
+                        mode='w',
+                        compression=zipfile.ZIP_DEFLATED,
+                    ) as zip_file:
+                for name, lines in prof.iterSource():
+                    zip_file.writestr(
+                        convertPath(name),
+                        ''.join(lines)
+                    )
 
 if __name__ == '__main__':
     main()

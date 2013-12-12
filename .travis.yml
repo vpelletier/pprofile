@@ -14,3 +14,5 @@ script:
   - pprofile demo/empty.py
   - pprofile --format callgrind demo/empty.py
   - pprofile --statistic .01 demo/empty.py
+  - pprofile --format callgrind --zipfile source_code.zip demo/threads.py
+  - pprofile --format callgrind --zipfile source_code.zip demo/empty.py
