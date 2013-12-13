@@ -5,7 +5,7 @@ import time
 import sys
 
 def func():
-  # Busy loop, so context switches happe, so context switches happenn
+  # Busy loop, so context switches happen
   end = time.time() + 1
   while time.time() < end:
     pass

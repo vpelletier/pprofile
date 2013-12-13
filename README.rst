@@ -11,7 +11,7 @@ lines in that function.
 
 Robert Kern's line_profiler_ is a very nice alternative providing line-level
 profiling granularity, but in my opinion it has a few drawbacks which (in
-addition to the attractive technical chalenge) made me start pprofile:
+addition to the attractive technical challenge) made me start pprofile:
 
 - It is not pure-python. This choice makes sense for performance
   but makes usage with pypy difficult and requires installation (I value
@@ -42,7 +42,7 @@ arguments).
 As a command with conflicting argument names: use "--" before profiled
 executable name::
 
-  $ pprofile -- foo --out bla
+  $ pprofile -- foo --out bar
 
 As a module::
 
@@ -64,7 +64,7 @@ Alternative to `with`, allowing to end profiling in a different place::
       # Some more hot-spot code
       profiler.disable()
 
-Then, to display anotated source on stdout::
+Then, to display annotated source on stdout::
 
   profiler.print_stats()
 
@@ -112,14 +112,14 @@ Generating callgrind_-format output in a file instead of stdout::
 
   $ pprofile --format callgrind --out cachegrind.out.threads demo/threads.py
 
-Callgrind format is implicitely enabled if ``--out`` basename starts with
+Callgrind format is implicitly enabled if ``--out`` basename starts with
 ``cachegrind.out.``, so above command can be simplified as::
 
   $ pprofile --out cachegrind.out.threads demo/threads.py
 
 Callgrind format can be opened, for example, with kcachegrind_.
 
-If you are analysing callgrind traces on a different machine, you may want to
+If you are analyzing callgrind traces on a different machine, you may want to
 use the ``--zipfile`` option to generate a zip file containing all files::
 
   $ pprofile --out cachegrind.out.threads --zipfile threads_source.zip demo/threads.py
@@ -220,10 +220,10 @@ Advanced
 --------
 
 *Warning*: API described here may change as I get a better understanding of what
-is really needed (are filename + globals enough ? maybe the whole frame is
+is really needed (are file name + globals enough ? maybe the whole frame is
 needed ?).
 
-Both classes can be subclassed to customise file name generation. This is for
+Both classes can be sub-classed to customize file name generation. This is for
 example useful when profiling Zope's Python Scripts. The following can be used
 to allow profiling from restricted environment::
 
@@ -250,7 +250,7 @@ source code from Python Scripts::
 
 Of course, allowing such access from Restricted Python has **security
 implications**, depending on who has access to it. You decide and take
-responsability.
+responsibility.
 
 Profiling such level of complex code as Zope (bonus points when profiling
 template rendering) is not an easy task. Tweak proposed ZopeProfiler class
@@ -270,7 +270,7 @@ Limitations
 
 The time spent in another thread is not discounted from interrupted line.
 On the long run, it should not be a problem if switches are evenly distributed
-among lines, but threads executing fewer lines will appear as eating more cpu
+among lines, but threads executing fewer lines will appear as eating more CPU
 time than they really do.
 
 This is not specific to simultaneous multi-thread profiling: profiling a single
@@ -293,7 +293,7 @@ with another thread - although the other thread is not profiled)::
        5|         0|            0|            0|  0.00%|import sys
        6|         0|            0|            0|  0.00%|
        7|         1|   1.5974e-05|   1.5974e-05|  0.00%|def func():
-       8|         0|            0|            0|  0.00%|  # Busy loop, so context switches happe, so context switches happenn
+       8|         0|            0|            0|  0.00%|  # Busy loop, so context switches happen
        9|         1|  1.40667e-05|  1.40667e-05|  0.00%|  end = time.time() + 1
       10|    146604|     0.511392|  3.48826e-06| 51.13%|  while time.time() < end:
       11|    146603|      0.48861|  3.33288e-06| 48.85%|    pass
@@ -320,7 +320,7 @@ with another thread - although the other thread is not profiled)::
   ------+----------+-------------+-------------+-------+-----------
   [...]
        7|         1|  1.50204e-05|  1.50204e-05|  0.00%|def func():
-       8|         0|            0|            0|  0.00%|  # Busy loop, so context switches happe, so context switches happenn
+       8|         0|            0|            0|  0.00%|  # Busy loop, so context switches happen
        9|         1|  2.38419e-05|  2.38419e-05|  0.00%|  end = time.time() + 1
       10|     64598|     0.538571|  8.33728e-06| 53.79%|  while time.time() < end:
       11|     64597|     0.461432|  7.14324e-06| 46.08%|    pass
@@ -328,7 +328,7 @@ with another thread - although the other thread is not profiled)::
 
 This also means that the sum of the percentage of all lines can exceed 100%. It
 can reach the number of concurrent threads (200% with 2 threads being busy for
-the whole profiled executiong time, etc).
+the whole profiled execution time, etc).
 
 Example with 3 threads (same as first example, this time with thread profiling
 enabled)::
