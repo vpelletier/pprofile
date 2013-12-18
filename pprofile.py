@@ -4,6 +4,7 @@ from functools import partial, wraps
 from time import time
 from warnings import warn
 import argparse
+import inspect
 import linecache
 import os
 import sys
@@ -170,8 +171,11 @@ class ProfileBase(object):
         filesystem path.
         """
         result = set(self.file_dict)
-        # Ignore profiling code
-        result.discard(__file__)
+        # Ignore profiling code. __file__ does not always provide consistent
+        # results with f_code.co_filename (ex: easy_install with zipped egg),
+        # so inspect current frame instead.
+        # XXX: assumes all of pprofile code resides in a single file.
+        result.discard(inspect.currentframe().f_code.co_filename)
         return result
 
     def _getFileNameList(self, filename):
