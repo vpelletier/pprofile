@@ -695,6 +695,9 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
     def print_stats(self, *args, **kw):
         return self.profiler.print_stats(*args, **kw)
 
+    def iterSource(self, *args, **kw):
+        return self.profiler.iterSource(*args, **kw)
+
 # profile/cProfile-like API (no sort parameter !)
 def _run(threads, verbose, func_name, filename, *args, **kw):
     if threads:
