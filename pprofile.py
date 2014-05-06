@@ -615,8 +615,6 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
       pt = StatisticalThread(profiler)
       with pt:
         # do stuff
-      pt.stop()
-      pt.join()
       profiler.print_stats()
     """
     _test = None
