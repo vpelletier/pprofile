@@ -641,7 +641,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         )
         self._stop_event = threading.Event()
         self._period = period
-        self.profiler = profiler = StatisticalProfile()
+        self.profiler = profiler
         profiler.total_time = 0
         self.daemon = True
 
