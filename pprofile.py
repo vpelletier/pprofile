@@ -674,8 +674,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
             test = lambda x, ident=self.ident: ident != x
         sample = self.profiler.sample
         stop_event = self._stop_event
-        period = self._period
-        wait = partial(stop_event.wait, period)
+        wait = partial(stop_event.wait, self._period)
         while self._can_run:
             for ident, frame in current_frames().iteritems():
                 if test(ident):
