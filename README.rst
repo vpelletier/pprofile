@@ -368,6 +368,6 @@ enabled)::
 Note that the call time is not added to file total: it's already accounted
 for inside "func".
 
-.. _line_profiler: https://bitbucket.org/robertkern/line_profiler
+.. _line_profiler: https://github.com/rkern/line_profiler
 .. _callgrind: http://valgrind.org/docs/manual/cl-format.html
 .. _kcachegrind: http://kcachegrind.sourceforge.net
