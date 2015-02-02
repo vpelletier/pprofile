@@ -35,9 +35,9 @@ As a command::
 
   $ pprofile some_python_executable
 
-Once `some_python_executable` returns, prints annotated code of each file
-involved in the execution (output can be directed to a file using `-o`/`--out`
-arguments).
+Once ``some_python_executable`` returns, prints annotated code of each file
+involved in the execution (output can be directed to a file using
+``-o``/``--out`` arguments).
 
 As a command with conflicting argument names: use "--" before profiled
 executable name::
@@ -53,7 +53,7 @@ As a module::
       with profiler:
           # Some hot-spot code
 
-Alternative to `with`, allowing to end profiling in a different place::
+Alternative to ``with``, allowing to end profiling in a different place::
 
   def someHotSpotCallable():
       profiler.enable()
@@ -252,8 +252,8 @@ Of course, allowing such access from Restricted Python has **security
 implications**, depending on who has access to it. You decide and take
 responsibility.
 
-Profiling such level of complex code as Zope (bonus points when profiling
-template rendering) is not an easy task. Tweak proposed ZopeProfiler class
+Profiling such complex code as Zope (bonus points when profiling
+template rendering) is not an easy task. Tweak proposed ``ZopeProfiler`` class
 as you see fit for your profiling case - this is one of the reasons why no
 such implementation is proposed ready-to-use (I don't see a one-size-fits-all
 for this yet).
@@ -261,9 +261,9 @@ for this yet).
 Thread-aware profiling
 ======================
 
-ThreadProfile class provides the same features are Profile, but uses
-`threading.settrace` to propagate tracing to `threading.Thread` threads started
-after profiling is enabled.
+``ThreadProfile`` class provides the same features as ``Profile``, but uses
+``threading.settrace`` to propagate tracing to ``threading.Thread`` threads
+started after profiling is enabled.
 
 Limitations
 -----------
