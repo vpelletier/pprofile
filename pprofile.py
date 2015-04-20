@@ -255,6 +255,13 @@ class ProfileBase(object):
             convertPath = _relpath
         else:
             convertPath = lambda x: x
+        if os.path.sep != "/":
+            # qCacheGrind (windows build) needs at least one UNIX separator
+            # in path to find the file. Adapt here even if this is probably
+            # more of a qCacheGrind issue...
+            convertPath = lambda x, cascade=convertPath: cascade(
+                '/'.join(x.split(os.path.sep))
+            )
         for name in self._getFileNameList(filename):
             printable_name = convertPath(name)
             print >> out, 'fl=%s' % printable_name
