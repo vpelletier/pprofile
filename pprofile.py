@@ -254,7 +254,9 @@ class ProfileBase(object):
         if relative_path:
             convertPath = _relpath
         else:
-            convertPath = lambda x: x
+            #  qCacheGrind (windows build) uses UNIX path separators instead of Windows.
+            #  Adapt here even if this is probably more of a qCacheGrind issue...
+            convertPath = lambda x: x.replace("\\","/")
         for name in self._getFileNameList(filename):
             printable_name = convertPath(name)
             print >> out, 'fl=%s' % printable_name
