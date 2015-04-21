@@ -174,11 +174,10 @@ class ProfileBase(object):
         # Ignore profiling code. __file__ does not always provide consistent
         # results with f_code.co_filename (ex: easy_install with zipped egg),
         # so inspect current frame instead.
-        # XXX: assumes all of pprofile code resides in a single file.
-        # Get current file from one of its methods. Compatible with implemantations
+        # Get current file from one of pprofile methods. Compatible with implemantations
         # that do not have the inspect.currentframe() method (e.g. IronPython)
-        # XXX: still assumes that all of pprofile code is in a single file.
-        # XXX: also assumes that _initStack exists in pprofile module.
+        # XXX: Assumes that all of pprofile code is in a single file.
+        # XXX: Assumes that _initStack exists in pprofile module.
         result.discard(inspect.getsourcefile(_initStack))
         return result
 
