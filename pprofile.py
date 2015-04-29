@@ -174,8 +174,11 @@ class ProfileBase(object):
         # Ignore profiling code. __file__ does not always provide consistent
         # results with f_code.co_filename (ex: easy_install with zipped egg),
         # so inspect current frame instead.
-        # XXX: assumes all of pprofile code resides in a single file.
-        result.discard(inspect.currentframe().f_code.co_filename)
+        # Get current file from one of pprofile methods. Compatible with implemantations
+        # that do not have the inspect.currentframe() method (e.g. IronPython)
+        # XXX: Assumes that all of pprofile code is in a single file.
+        # XXX: Assumes that _initStack exists in pprofile module.
+        result.discard(inspect.getsourcefile(_initStack))
         return result
 
     def _getFileNameList(self, filename):
@@ -251,6 +254,10 @@ class ProfileBase(object):
             convertPath = _relpath
         else:
             convertPath = lambda x: x
+        if os.path.sep != "/":
+            #  qCacheGrind (windows build) needs at least one UNIX separator in path to find the file.
+            #  Adapt here even if this is probably more of a qCacheGrind issue...
+            convertPath = lambda x, cascade=convertPath: cascade('/'.join(x.split(os.path.sep)))
         for name in self._getFileNameList(filename):
             printable_name = convertPath(name)
             print >> out, 'fl=%s' % printable_name
