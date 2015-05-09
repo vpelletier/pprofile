@@ -2,32 +2,6 @@ Line-granularity, thread-aware deterministic and statistic pure-python profiler
 
 Inspired from Robert Kern's line_profiler_ .
 
-Overview
-========
-
-Python's standard profiling tools have a callable-level granularity, which
-means it is only possible to tell which function is a hot-spot, not which
-lines in that function.
-
-Robert Kern's line_profiler_ is a very nice alternative providing line-level
-profiling granularity, but in my opinion it has a few drawbacks which (in
-addition to the attractive technical challenge) made me start pprofile:
-
-- It is not pure-python. This choice makes sense for performance
-  but makes usage with pypy difficult and requires installation (I value
-  execution straight from checkout).
-
-- It requires source code modification to select what should be profiled.
-  I prefer to have the option to do an in-depth, non-intrusive profiling.
-
-- As an effect of previous point, it does not have a notion above individual
-  callable, annotating functions but not whole files - preventing module
-  import profiling.
-
-- Profiling recursive code provides unexpected results (recursion cost is
-  accumulated on callable's first line) because it doesn't track call stack.
-  This may be unintended, and may be fixed at some point in line_profiler.
-
 Usage
 =====
 
@@ -35,42 +9,75 @@ As a command::
 
   $ pprofile some_python_executable
 
-Once ``some_python_executable`` returns, prints annotated code of each file
-involved in the execution (output can be directed to a file using
-``-o``/``--out`` arguments).
+Once `some_python_executable` returns, prints annotated code of each file
+involved in the execution.
 
-As a command with conflicting argument names: use "--" before profiled
-executable name::
+As a module:
 
-  $ pprofile -- foo --out bar
-
-As a module::
+.. code:: python
 
   import pprofile
 
-  profiler = pprofile.Profile()
   def someHotSpotCallable():
+      profiler = pprofile.Profile()
       with profiler:
           # Some hot-spot code
+      profiler.print_stats()
 
-Alternative to ``with``, allowing to end profiling in a different place::
+For advanced usage, see :code:`pprofile --help` and :code:`pydoc pprofile`.
 
-  def someHotSpotCallable():
-      profiler.enable()
-      # Some hot-spot code
-      someOtherFunction()
+Output
+======
 
-  def someOtherFunction():
-      # Some more hot-spot code
-      profiler.disable()
+Supported output formats.
 
-Then, to display annotated source on stdout::
+Callgrind
+---------
 
-  profiler.print_stats()
+The most useful output mode of pprofile is Callgrind_Profile_Format_, allows
+browsing profiling results with kcachegrind_ (or qcachegrind_ on Windows).
 
-(several similar methods are available).
+::
 
-Sample output (standard threading.py removed from output for readability)::
+  $ pprofile --format callgrind --out cachegrind.out.threads demo/threads.py
+
+Callgrind format is implicitly enabled if ``--out`` basename starts with
+``cachegrind.out.``, so above command can be simplified as::
+
+  $ pprofile --out cachegrind.out.threads demo/threads.py
+
+If you are analyzing callgrind traces on a different machine, you may want to
+use the ``--zipfile`` option to generate a zip file containing all files::
+
+  $ pprofile --out cachegrind.out.threads --zipfile threads_source.zip demo/threads.py
+
+Generated files will use relative paths, so you can extract generated archive
+in the same path as profiling result, and kcachegrind will load them - and not
+your system-wide files, which may differ.
+
+Annotated code
+--------------
+
+Human-readable output, but can become difficult to use with large programs.
+
+::
+
+  $ pprofile demo/threads.py
+
+Profiling modes
+===============
+
+Deterministic profiling
+---------------------
+
+In deterministic profiling mode, pprofile gets notified of each executed line.
+This mode generates very detailed reports, but at the cost of a large overhead.
+Also, profiling hooks being per-thread, either profiling must be enable before
+spawning threads (if you want to profile more than just the current thread),
+or profiled application must provide ways of enabling profiling afterwards
+- which is not very convenient.
+
+::
 
   $ pprofile --threads 0 demo/threads.py
   Command line: ['demo/threads.py']
@@ -108,44 +115,19 @@ Note that time.sleep call is not counted as such. For some reason, python is
 not generating c_call/c_return/c_exception events (which are ignored by current
 code, as a result).
 
-Generating callgrind_-format output in a file instead of stdout::
-
-  $ pprofile --format callgrind --out cachegrind.out.threads demo/threads.py
-
-Callgrind format is implicitly enabled if ``--out`` basename starts with
-``cachegrind.out.``, so above command can be simplified as::
-
-  $ pprofile --out cachegrind.out.threads demo/threads.py
-
-Callgrind format can be opened, for example, with kcachegrind_.
-
-If you are analyzing callgrind traces on a different machine, you may want to
-use the ``--zipfile`` option to generate a zip file containing all files::
-
-  $ pprofile --out cachegrind.out.threads --zipfile threads_source.zip demo/threads.py
-
-Generated files will use relative paths, so you can extract generated archive
-in the same path as profiling result, and kcachegrind will load them - and not
-your system-wide files, which may differ.
-
 Statistic profiling
 -------------------
 
-Deterministic profiling collects samples on each trigger (per line as in this
-module, or per call in traditional python profiling).
-Statistic profiling, on the other hand, triggers periodically. Samples
-accumulate where execution spends most time.
-As a result:
+In statistic profiling mode, pprofile periodically snapshots the current
+callstack(s) of current process to see what is being executed.
+As a result, profiler overhead can be dramatically reduced, making it possible
+to profile real workloads. Also, as statistic profiling acts at the
+whole-process level, it can be toggled independently of profiled code.
 
-- output lacks timing information
+The downside of statistic profiling is that output lacks timing information,
+which makes it harder to understand.
 
-- profiler overhead can be be balanced at will with measure duration by
-  changing trigger period
-
-- profiling can be turned on an off without having to reach specific points in
-  the call stack
-
-Sample output (standard threading.py trimmed from output for readability)::
+::
 
   $ pprofile --statistic .01 demo/threads.py
   Command line: ['demo/threads.py']
@@ -215,48 +197,6 @@ Sample output (standard threading.py trimmed from output for readability)::
 Some details are lost (not all executed lines have a non-null hit-count), but
 the hot spot is still easily identifiable in this trivial example, and its call
 stack is still visible.
-
-Advanced
---------
-
-*Warning*: API described here may change as I get a better understanding of what
-is really needed (are file name + globals enough ? maybe the whole frame is
-needed ?).
-
-Both classes can be sub-classed to customize file name generation. This is for
-example useful when profiling Zope's Python Scripts. The following can be used
-to allow profiling from restricted environment::
-
-  import pprofile
-  class ZopeProfiler(pprofile.Profile):
-      __allow_access_to_unprotected_subobjects__ = 1
-      def _getFilename(self, filename, f_globals):
-          if 'Script (Python)' in filename and 'script' in f_globals:
-              filename = f_globals['script'].id
-          return filename
-
-You will also want to monkey-patch linecache so that it becomes able to fetch
-source code from Python Scripts::
-
-  import linecache
-  linecache_getlines = linecache.getlines
-  def getlines(filename, module_globals=None):
-      if module_globals is not None and \
-              'Script (Python)' in filename and \
-              'script' in module_globals:
-          return module_globals['script'].body().splitlines()
-      return linecache_getlines(filename, module_globals)
-  linecache.getlines = getlines
-
-Of course, allowing such access from Restricted Python has **security
-implications**, depending on who has access to it. You decide and take
-responsibility.
-
-Profiling such complex code as Zope (bonus points when profiling
-template rendering) is not an easy task. Tweak proposed ``ZopeProfiler`` class
-as you see fit for your profiling case - this is one of the reasons why no
-such implementation is proposed ready-to-use (I don't see a one-size-fits-all
-for this yet).
 
 Thread-aware profiling
 ======================
@@ -330,8 +270,7 @@ This also means that the sum of the percentage of all lines can exceed 100%. It
 can reach the number of concurrent threads (200% with 2 threads being busy for
 the whole profiled execution time, etc).
 
-Example with 3 threads (same as first example, this time with thread profiling
-enabled)::
+Example with 3 threads::
 
   $ pprofile demo/threads.py
   Command line: ['demo/threads.py']
@@ -368,6 +307,33 @@ enabled)::
 Note that the call time is not added to file total: it's already accounted
 for inside "func".
 
+Why another profiler ?
+======================
+
+Python's standard profiling tools have a callable-level granularity, which
+means it is only possible to tell which function is a hot-spot, not which
+lines in that function.
+
+Robert Kern's line_profiler_ is a very nice alternative providing line-level
+profiling granularity, but in my opinion it has a few drawbacks which (in
+addition to the attractive technical challenge) made me start pprofile:
+
+- It is not pure-python. This choice makes sense for performance
+  but makes usage with pypy difficult and requires installation (I value
+  execution straight from checkout).
+
+- It requires source code modification to select what should be profiled.
+  I prefer to have the option to do an in-depth, non-intrusive profiling.
+
+- As an effect of previous point, it does not have a notion above individual
+  callable, annotating functions but not whole files - preventing module
+  import profiling.
+
+- Profiling recursive code provides unexpected results (recursion cost is
+  accumulated on callable's first line) because it doesn't track call stack.
+  This may be unintended, and may be fixed at some point in line_profiler.
+
 .. _line_profiler: https://github.com/rkern/line_profiler
-.. _callgrind: http://valgrind.org/docs/manual/cl-format.html
+.. _Callgrind_Profile_Format: http://valgrind.org/docs/manual/cl-format.html
 .. _kcachegrind: http://kcachegrind.sourceforge.net
+.. _qcachegrind: http://sourceforge.net/projects/qcachegrindwin/
