@@ -193,13 +193,12 @@ class ProfileBase(object):
             return self.global_dict[id(frame.f_globals)]
         except KeyError:
             f_globals = frame.f_globals
-            raw_filename = frame.f_code.co_filename
             name = self._getFilename(frame.f_code.co_filename, f_globals)
             try:
                 file_timing = self.file_dict[name]
             except KeyError:
                 self.file_dict[name] = file_timing = self.FileTiming(
-                    raw_filename,
+                    frame.f_code.co_filename,
                     name,
                     f_globals,
                     self,
