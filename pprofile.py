@@ -176,6 +176,11 @@ def _verboseProfileDecorator(self):
     return decorator
 
 class ProfileBase(object):
+    """
+    Methods common to deterministic and statistic profiling.
+
+    Subclasses can override the "FileTiming" property to use a different class.
+    """
     FileTiming = _FileTiming
 
     def __init__(self):
