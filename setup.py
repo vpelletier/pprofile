@@ -9,7 +9,7 @@ description = open(join(dirname(__file__), 'README.rst')).read()
 
 setup(
     name='pprofile',
-    version='1.7.3',
+    version='1.8',
     author='Vincent Pelletier',
     author_email='plr.vincent@gmail.com',
     description=next(x for x in description.splitlines() if x.strip()),
@@ -25,6 +25,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: Python :: Implementation :: IronPython',
         'Topic :: Software Development',
     ],
     py_modules=['pprofile'],
