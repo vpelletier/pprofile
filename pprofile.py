@@ -19,16 +19,41 @@ def _getFuncOrFile(func, module, line):
         return '%s:%s' % (func, line)
 
 class _FileTiming(object):
+    """
+    Accumulation of profiling statistics (line and call durations) for a given
+    source "file" (unique global dict).
+
+    Subclasses should be aware that:
+    - this classes uses __slots__, mainly for cpu efficiency (property lookup
+      is in a list instead of a dict)
+    - it can access the BaseProfile instance which created any instace using
+      the "profiler" property, should they share some state across source
+      files.
+    - methods on this class are profiling choke-point - keep customisations
+      as cheap in CPU as you can !
+    """
     __slots__ = ('line_dict', 'call_dict', 'filename', 'global_dict',
-        'raw_filename')
-    def __init__(self, raw_filename, filename, global_dict):
+        'raw_filename', 'profiler')
+    def __init__(self, raw_filename, filename, global_dict, profiler):
         self.raw_filename = raw_filename
         self.filename = filename
         self.global_dict = global_dict
         self.line_dict = {}
         self.call_dict = {}
+        # Note: not used in this implementation, may be used by subclasses.
+        self.profiler = profiler
 
     def hit(self, code, line, duration):
+        """
+        A line has finished executing.
+
+        code (code)
+          container function's code object
+        line (int)
+          line number of just executed line
+        duration (float)
+          duration of the line, in seconds
+        """
         try:
             entry = self.line_dict[line]
         except KeyError:
@@ -37,7 +62,23 @@ class _FileTiming(object):
             entry[1] += 1
             entry[2] += duration
 
-    def call(self, code, line, callee_file_timing, callee, duration):
+    def call(self, code, line, callee_file_timing, callee, duration, frame):
+        """
+        A call originating from this file returned.
+
+        code (code)
+          caller's code object
+        line (int)
+          caller's line number
+        callee_file_timing (FileTiming)
+          callee's FileTiming
+        callee (code)
+          callee's code object
+        duration (float)
+          duration of the call, in seconds
+        frame (frame)
+          calle's entire frame as of its return
+        """
         key = (line, callee_file_timing.filename, callee)
         try:
             entry = self.call_dict[key]
@@ -69,6 +110,8 @@ class _FileTiming(object):
 
     def getTotalTime(self):
         return sum(x[2] for x in self.line_dict.itervalues())
+
+FileTiming = _FileTiming
 
 class LocalDescriptor(threading.local):
     """
@@ -133,6 +176,8 @@ def _verboseProfileDecorator(self):
     return decorator
 
 class ProfileBase(object):
+    FileTiming = _FileTiming
+
     def __init__(self):
         self.file_dict = {}
         self.global_dict = {}
@@ -148,10 +193,11 @@ class ProfileBase(object):
             try:
                 file_timing = self.file_dict[name]
             except KeyError:
-                self.file_dict[name] = file_timing = _FileTiming(
+                self.file_dict[name] = file_timing = self.FileTiming(
                     raw_filename,
                     name,
                     f_globals,
+                    self,
                 )
             self.global_dict[id(f_globals)] = file_timing
             return file_timing
@@ -557,6 +603,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
                     caller_frame.f_code, caller_frame.f_lineno,
                     self._getFileTiming(frame),
                     frame.f_code, inclusive_duration,
+                    frame,
                 )
         return self._local_trace
 
