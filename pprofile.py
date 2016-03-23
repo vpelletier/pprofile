@@ -661,7 +661,7 @@ class StatisticalProfile(ProfileBase):
             caller_timing = getFileTiming(caller)
             caller_code = caller.f_code
             caller_timing.call(caller_code, caller.f_lineno,
-                called_timing, called_code, 0)
+                called_timing, called_code, 0, frame)
             called_timing = caller_timing
             frame = caller
             called_code = caller_code
