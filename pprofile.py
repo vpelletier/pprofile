@@ -681,6 +681,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
     """
     _test = None
     _start_time = None
+    clean_exit = False
 
     def __init__(self, profiler, period=.001, single=True, group=None, name=None):
         """
@@ -744,6 +745,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
             frame = None
             wait()
         stop_event.clear()
+        self.clean_exit = True
 
     def callgrind(self, *args, **kw):
         return self.profiler.callgrind(*args, **kw)
@@ -885,6 +887,10 @@ def main():
                         convertPath(name),
                         ''.join(lines)
                     )
+    if options.statistic and not prof.clean_exit:
+        # Mostly useful for regresion testing, as exceptions raised in threads
+        # do not change exit status.
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
