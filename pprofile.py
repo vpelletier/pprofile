@@ -428,8 +428,8 @@ class ProfileBase(object):
                     'time': duration,
                     'time_per_hit': time_per_hit,
                     'percent': percent(duration, total_time),
-                    'line': line,
-                }, end=' ', file=out)
+                    'line': line.rstrip(),
+                }, file=out)
                 for _, _, hits, duration, callee_file, callee_line, \
                         callee_name in call_list_by_line.get(lineno, ()):
                     print(_ANNOTATE_CALL_FORMAT % {
