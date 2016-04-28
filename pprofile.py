@@ -126,6 +126,17 @@ class _FileTiming(object):
     def getTotalTime(self):
         return sum(x[2] for x in self.line_dict.itervalues())
 
+    def getTotalHitCount(self):
+        return sum(x[1] for x in self.line_dict.itervalues())
+
+    def getSortKey(self):
+        # total duration first, then total hit count for statistical profiling
+        result = [0, 0]
+        for _, hit, duration in self.line_dict.itervalues():
+            result[0] += duration
+            result[1] += hit
+        return result
+
 FileTiming = _FileTiming
 
 class LocalDescriptor(threading.local):
@@ -247,13 +258,21 @@ class ProfileBase(object):
         result.discard(inspect.getsourcefile(_initStack))
         return result
 
-    def _getFileNameList(self, filename):
-        file_dict = self.file_dict
+    def _getFileNameList(self, filename, may_sort=True):
         if filename is None:
-            return sorted(self.getFilenameSet(), reverse=True,
-                key=lambda x: file_dict[x].getTotalTime())
+            filename = self.getFilenameSet()
         elif isinstance(filename, basestring):
             return [filename]
+        if may_sort:
+            try:
+                # Detect if filename is an ordered data type.
+                filename[:0]
+            except TypeError:
+                # Not ordered, sort.
+                file_dict = self.file_dict
+                filename = sorted(filename, reverse=True,
+                    key=lambda x: file_dict[x].getSortKey()
+                )
         return filename
 
     def _iterFile(self, name, call_list_by_line):
@@ -297,7 +316,7 @@ class ProfileBase(object):
         Time unit: microsecond (1e-6 second).
         out (file-ish opened for writing)
             Destination of callgrind profiling data.
-        filename (str, list of str)
+        filename (str, collection of str)
             If provided, dump stats for given source file(s) only.
             By default, list for all known files.
         commandline (anything with __str__)
@@ -327,7 +346,7 @@ class ProfileBase(object):
             convertPath = lambda x, cascade=convertPath: cascade(
                 '/'.join(x.split(os.path.sep))
             )
-        for name in self._getFileNameList(filename):
+        for name in self._getFileNameList(filename, may_sort=False):
             printable_name = convertPath(name)
             print >> out, 'fl=%s' % printable_name
             funcname = False
@@ -366,8 +385,10 @@ class ProfileBase(object):
         Time unit: second.
         out (file-ish opened for writing)
             Destination of annotated sources.
-        filename (str, list of str)
+        filename (str, collection of str)
             If provided, dump stats for given source file(s) only.
+            If unordered collection, it will get sorted by decreasing total
+            file score (total time if available, then total hit count).
             By default, list for all known files.
         commandline (anything with __str__)
             If provided, will be output as the command line used to generate
