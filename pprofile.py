@@ -17,6 +17,15 @@
 from __future__ import print_function
 from collections import defaultdict, deque
 from functools import partial, wraps
+# Note: use time, not clock.
+# Clock, at least on linux, ignores time not spent executing code
+# (ex: time.sleep()). The goal of pprofile is not to profile python code
+# execution as such (ie, to improve python interpreter), but to profile a
+# possibly complex application, with its (IO) waits, sleeps, (...) so a
+# developper can understand what is slow rather than what keeps the cpu busy.
+# So using the wall-clock as a way to measure time spent is more meaningful.
+# XXX: This said, if time() lacks precision, a better but likely
+# platform-dependent wall-clock time source must be identified and used.
 from time import time
 from warnings import warn
 import argparse
