@@ -793,23 +793,23 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         self.clean_exit = True
 
     def callgrind(self, *args, **kw):
-        warning.warn('deprecated', DeprecationWarning)
+        warn('deprecated', DeprecationWarning)
         return self.profiler.callgrind(*args, **kw)
 
     def annotate(self, *args, **kw):
-        warning.warn('deprecated', DeprecationWarning)
+        warn('deprecated', DeprecationWarning)
         return self.profiler.annotate(*args, **kw)
 
     def dump_stats(self, *args, **kw):
-        warning.warn('deprecated', DeprecationWarning)
+        warn('deprecated', DeprecationWarning)
         return self.profiler.dump_stats(*args, **kw)
 
     def print_stats(self, *args, **kw):
-        warning.warn('deprecated', DeprecationWarning)
+        warn('deprecated', DeprecationWarning)
         return self.profiler.print_stats(*args, **kw)
 
     def iterSource(self, *args, **kw):
-        warning.warn('deprecated', DeprecationWarning)
+        warn('deprecated', DeprecationWarning)
         return self.profiler.iterSource(*args, **kw)
 
 # profile/cProfile-like API (no sort parameter !)
