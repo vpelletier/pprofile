@@ -159,6 +159,7 @@ class LocalDescriptor(threading.local):
           (ex: accessing thread never initialised that property).
           If None, AttributeError is raised.
         """
+        super(LocalDescriptor, self).__init__()
         if func is not None:
             self.func = func
 
@@ -178,7 +179,7 @@ class LocalDescriptor(threading.local):
         try:
             delattr(self, str(id(instance)))
         except AttributeError:
-            self.func
+            pass
 
 _ANNOTATE_HEADER = \
     '%6s|%10s|' \

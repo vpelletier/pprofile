@@ -62,7 +62,6 @@ Example statistic usage (to profile other running threads):
     )
     return data
 """
-import pprofile
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -70,6 +69,7 @@ from email.encoders import encode_quopri
 from cStringIO import StringIO
 import os
 from collections import defaultdict
+import pprofile
 
 _marker = object()
 
@@ -107,12 +107,12 @@ class ZopeFileTiming(pprofile.FileTiming):
             code, line, callee_file_timing, callee, duration, frame,
         )
 
-class ZopeBase(object):
+class ZopeMixIn(object):
     __allow_access_to_unprotected_subobjects__ = 1
     FileTiming = ZopeFileTiming
 
     def __init__(self):
-        super(ZopeBase, self).__init__()
+        super(ZopeMixIn, self).__init__()
         self.sql_dict = defaultdict(list)
         self.zodb_dict = defaultdict(lambda: defaultdict(list))
 
@@ -224,10 +224,10 @@ class ZopeBase(object):
 
         return result.as_string(), result['content-type']
 
-class ZopeProfiler(ZopeBase, pprofile.Profile):
+class ZopeProfiler(ZopeMixIn, pprofile.Profile):
     pass
 
-class ZopeStatisticalProfile(ZopeBase, pprofile.StatisticalProfile):
+class ZopeStatisticalProfile(ZopeMixIn, pprofile.StatisticalProfile):
     pass
 
 class ZopeStatisticalThread(pprofile.StatisticalThread):

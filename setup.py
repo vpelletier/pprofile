@@ -1,6 +1,6 @@
-from setuptools import setup
 from os.path import join, dirname
 import sys
+from setuptools import setup
 extra = {}
 if sys.version_info >= (3, ):
     extra['use_2to3'] = True
@@ -29,7 +29,7 @@ setup(
         'Topic :: Software Development',
     ],
     py_modules=['pprofile', 'zpprofile'],
-    entry_points = {
+    entry_points={
         'console_scripts': [
             'pprofile=pprofile:main',
         ],
