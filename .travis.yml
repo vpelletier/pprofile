@@ -16,3 +16,4 @@ script:
   - pprofile --statistic .01 demo/empty.py
   - pprofile --format callgrind --zipfile source_code.zip demo/threads.py
   - pprofile --format callgrind --zipfile source_code.zip demo/empty.py
+  - pprofile demo/encoding.py
