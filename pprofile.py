@@ -452,10 +452,6 @@ class ProfileBase(object):
                     time_per_hit = duration / hits
                 else:
                     time_per_hit = 0
-                try:
-                    line = line.encode('utf-8')
-                except UnicodeDecodeError:
-                    pass
                 print(_ANNOTATE_FORMAT % {
                     'lineno': lineno,
                     'hits': hits,
@@ -504,8 +500,12 @@ class ProfileBase(object):
         """
         Similar to profile.Profile.dump_stats - but different output format !
         """
-        with open(filename, 'w') as out:
-            self.annotate(out)
+        try:
+            with open(filename, 'w', encoding="utf-8") as out:
+                self.annotate(out)
+        except TypeError:
+            with open(filename, 'w') as out:
+                self.annotate(out)
 
     def print_stats(self):
         """
