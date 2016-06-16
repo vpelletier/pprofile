@@ -452,13 +452,17 @@ class ProfileBase(object):
                     time_per_hit = duration / hits
                 else:
                     time_per_hit = 0
+                try:
+                    line = line.encode('utf-8')
+                except UnicodeDecodeError:
+                    pass
                 print(_ANNOTATE_FORMAT % {
                     'lineno': lineno,
                     'hits': hits,
                     'time': duration,
                     'time_per_hit': time_per_hit,
                     'percent': percent(duration, total_time),
-                    'line': line.rstrip().encode("utf-8"),
+                    'line': line.rstrip(),
                 }, file=out)
                 for _, _, hits, duration, callee_file, callee_line, \
                         callee_name in call_list_by_line.get(lineno, ()):
