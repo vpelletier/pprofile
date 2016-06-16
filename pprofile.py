@@ -123,27 +123,47 @@ class _FileTiming(object):
 
     def getCallListByLine(self):
         result = defaultdict(list)
-        for (line, name, callee), (code, hit, duration) in \
-                self.call_dict.iteritems():
-            result[line].append((
-                code.co_name, code.co_firstlineno,
-                hit, duration,
-                name, callee.co_firstlineno, callee.co_name,
-            ))
+        try:
+            for (line, name, callee), (code, hit, duration) in \
+                    self.call_dict.iteritems():
+                result[line].append((
+                    code.co_name, code.co_firstlineno,
+                    hit, duration,
+                    name, callee.co_firstlineno, callee.co_name,
+                ))
+        except AttributeError:
+            for (line, name, callee), (code, hit, duration) in \
+                    self.call_dict.items():
+                result[line].append((
+                    code.co_name, code.co_firstlineno,
+                    hit, duration,
+                    name, callee.co_firstlineno, callee.co_name,
+                ))
         return result
 
     def getTotalTime(self):
-        return sum(x[2] for x in self.line_dict.itervalues())
+        try:
+            return sum(x[2] for x in self.line_dict.itervalues())
+        except AttributeError:
+            return sum(x[2] for x in self.line_dict.values())
 
     def getTotalHitCount(self):
-        return sum(x[1] for x in self.line_dict.itervalues())
+        try:
+            return sum(x[1] for x in self.line_dict.itervalues())
+        except AttributeError:
+            return sum(x[1] for x in self.line_dict.values())
 
     def getSortKey(self):
         # total duration first, then total hit count for statistical profiling
         result = [0, 0]
-        for _, hit, duration in self.line_dict.itervalues():
-            result[0] += duration
-            result[1] += hit
+        try:
+            for _, hit, duration in self.line_dict.itervalues():
+                result[0] += duration
+                result[1] += hit
+        except AttributeError:
+            for _, hit, duration in self.line_dict.values():
+                result[0] += duration
+                result[1] += hit
         return result
 
 FileTiming = _FileTiming
@@ -438,7 +458,7 @@ class ProfileBase(object):
                     'time': duration,
                     'time_per_hit': time_per_hit,
                     'percent': percent(duration, total_time),
-                    'line': line.rstrip(),
+                    'line': line.rstrip().encode("utf-8"),
                 }, file=out)
                 for _, _, hits, duration, callee_file, callee_line, \
                         callee_name in call_list_by_line.get(lineno, ()):
@@ -785,9 +805,14 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         stop_event = self._stop_event
         wait = partial(stop_event.wait, self._period)
         while self._can_run:
-            for ident, frame in current_frames().iteritems():
-                if test(ident):
-                    sample(frame)
+            try:
+                for ident, frame in current_frames().iteritems():
+                    if test(ident):
+                        sample(frame)
+            except AttributeError:
+                for ident, frame in current_frames().items():
+                    if test(ident):
+                        sample(frame)
             frame = None
             wait()
         stop_event.clear()
