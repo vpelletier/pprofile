@@ -17,3 +17,4 @@ script:
   - pprofile --format callgrind --zipfile source_code.zip demo/threads.py
   - pprofile --format callgrind --zipfile source_code.zip demo/empty.py
   - pprofile demo/encoding.py
+  - LC_CTYPE=ISO-8859-15 pprofile demo/encoding.py

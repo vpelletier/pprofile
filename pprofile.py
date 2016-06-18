@@ -29,12 +29,40 @@ from functools import partial, wraps
 from time import time
 from warnings import warn
 import argparse
+import codecs
 import inspect
 import linecache
 import os
 import sys
 import threading
 import zipfile
+
+if sys.version_info < (3, ):
+    # Python 2.x linecache returns non-decoded strings, which cause errors when
+    # mixing source code of different encodings and writing to a fixed-encoding
+    # output. So instead of writing a lot of code to properly handle this, just
+    # emit text the Python 2 way: don't specify encoding.
+    def _open(name, mode, errors):
+      return open(name, mode)
+
+    def _reopen(stream, encoding=None, errors='strict'):
+        return stream
+else:
+    _open = codecs.open
+
+    def _reopen(stream, encoding=None, errors='strict'):
+        """
+        Reopen given stream, optionally changing the encoding and error handler.
+        """
+        if encoding is None:
+            encoding = stream.encoding
+        # XXX: Python3 < 3.2 does not have stream.buffer so this will raise.
+        # I do not see a way to change errors without also potentially changing
+        # the encoding, and there does not seem to be a way to change encoding
+        # without having to access the binary stream.
+        # Also, I do not expect many 3.0 and 3.1 to be still used. Feel free to
+        # report a bug if it raises.
+        return codecs.getwriter(encoding)(stream.buffer, errors=errors)
 
 def _getFuncOrFile(func, module, line):
     if func == '<module>' or func is None:
@@ -480,7 +508,7 @@ class ProfileBase(object):
         """
         Similar to profile.Profile.dump_stats - but different output format !
         """
-        with open(filename, 'w') as out:
+        with _open(filename, 'w', errors='replace') as out:
             self.annotate(out)
 
     def print_stats(self):
@@ -488,7 +516,7 @@ class ProfileBase(object):
         Similar to profile.Profile.print_stats .
         Returns None.
         """
-        self.annotate(sys.stdout)
+        self.annotate(_reopen(sys.stdout, errors='replace'))
 
 class ProfileRunnerBase(object):
     # profile/cProfile-like API
@@ -911,10 +939,10 @@ def main():
         prof.runpath(options.script, args)
     finally:
         if options.out == '-':
-            out = sys.stdout
+            out = _reopen(sys.stdout, errors='replace')
             close = lambda: None
         else:
-            out = open(options.out, 'w')
+            out = _open(options.out, 'w', errors='replace')
             close = out.close
         getattr(prof, format_dict[options.format])(
             out,
