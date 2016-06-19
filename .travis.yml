@@ -16,5 +16,7 @@ script:
   - pprofile --statistic .01 demo/empty.py
   - pprofile --format callgrind --zipfile source_code.zip demo/threads.py
   - pprofile --format callgrind --zipfile source_code.zip demo/empty.py
+  - pprofile --exclude-syspath demo/threads.py
+  - pprofile --exclude-syspath --statistic .01 demo/threads.py
   - pprofile demo/encoding.py
   - LC_CTYPE=ISO-8859-15 pprofile demo/encoding.py

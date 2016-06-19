@@ -12,6 +12,11 @@ As a command::
 Once `some_python_executable` returns, prints annotated code of each file
 involved in the execution.
 
+As a command, ignoring any files from default `sys.path` (ie, python modules
+themselves), for shorter output::
+
+  $ pprofile --exclude-syspath some_python_executable
+
 As a module:
 
 .. code:: python

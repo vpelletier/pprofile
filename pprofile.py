@@ -32,6 +32,7 @@ import argparse
 import inspect
 import linecache
 import os
+import re
 import sys
 import threading
 import zipfile
@@ -915,7 +916,40 @@ def main():
     parser.add_argument('-s', '--statistic', default=0, type=float,
         help='Use this period for statistic profiling, or use deterministic '
         'profiling when 0.')
+
+    group = parser.add_argument_group(
+        title='Filtering',
+        description='Allows excluding (and re-including) code from '
+            '"file names" matching regular expressions. '
+            '"file name" follows the semantics of python\'s "co_filename": '
+            'it may be a valid path, of an existing or non-existing file, '
+            'but it may be some arbitrary string too.'
+    )
+    group.add_argument('--exclude-syspath', action='store_true',
+        help='Exclude all from default "sys.path". Beware: this will also '
+        'exclude properly-installed non-standard modules, which may not be '
+        'what you want.')
+    group.add_argument('--exclude', action='append', default=[],
+        help='Exclude files whose name starts with any pattern.')
+    group.add_argument('--include', action='append', default=[],
+        help='Include files whose name would have otherwise excluded. '
+        'If no exclusion was specified, all paths are excluded first.')
+
     options, args = parser.parse_known_args()
+    if options.exclude_syspath:
+        options.exclude.extend('^' + re.escape(x) for x in sys.path)
+    if options.include and not options.exclude:
+        options.exclude.append('') # All-matching regex
+    if options.verbose:
+        if options.exclude:
+            print('Excluding:', file=sys.stderr)
+            for regex in options.exclude:
+                print('\t' + regex, file=sys.stderr)
+            if options.include:
+                print('But including:', file=sys.stderr)
+                for regex in options.include:
+                    print('\t' + regex, file=sys.stderr)
+
     args.insert(0, options.script)
     if options.format is None:
         if os.path.basename(options.out).startswith('cachegrind.out.'):
@@ -924,8 +958,9 @@ def main():
             options.format = 'text'
     relative_path = options.format == 'callgrind' and options.zipfile
     if options.statistic:
-        prof = StatisticalThread(
-            profiler=StatisticalProfile(),
+        prof = StatisticalProfile()
+        runner = StatisticalThread(
+            profiler=prof,
             period=options.statistic,
             single=not options.threads,
         )
@@ -934,9 +969,9 @@ def main():
             klass = ThreadProfile
         else:
             klass = Profile
-        prof = klass(verbose=options.verbose)
+        prof = runner = klass(verbose=options.verbose)
     try:
-        prof.runpath(options.script, args)
+        runner.runpath(options.script, args)
     finally:
         if options.out == '-':
             out = _reopen(sys.stdout, errors='replace')
@@ -944,8 +979,25 @@ def main():
         else:
             out = _open(options.out, 'w', errors='replace')
             close = out.close
+        if options.exclude:
+            exclusion_search_list = [
+                re.compile(x).search for x in options.exclude
+            ]
+            include_search_list = [
+                re.compile(x).search for x in options.include
+            ]
+            filename_set = {
+                x for x in prof.getFilenameSet()
+                if not (
+                    any(y(x) for y in exclusion_search_list) and
+                    not any(y(x) for y in include_search_list)
+                )
+            }
+        else:
+            filename_set = None
         getattr(prof, format_dict[options.format])(
             out,
+            filename=filename_set,
             commandline=repr(args),
             relative_path=relative_path,
         )
@@ -966,7 +1018,7 @@ def main():
                         convertPath(name),
                         ''.join(lines)
                     )
-    if options.statistic and not prof.clean_exit:
+    if options.statistic and not runner.clean_exit:
         # Mostly useful for regresion testing, as exceptions raised in threads
         # do not change exit status.
         sys.exit(1)
