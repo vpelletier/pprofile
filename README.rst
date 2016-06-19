@@ -73,7 +73,7 @@ Profiling modes
 ===============
 
 Deterministic profiling
----------------------
+-----------------------
 
 In deterministic profiling mode, pprofile gets notified of each executed line.
 This mode generates very detailed reports, but at the cost of a large overhead.
