@@ -39,7 +39,7 @@ Supported output formats.
 Callgrind
 ---------
 
-The most useful output mode of pprofile is Callgrind_Profile_Format_, allows
+The most useful output mode of pprofile is `Callgrind Profile Format`_, allows
 browsing profiling results with kcachegrind_ (or qcachegrind_ on Windows).
 
 ::
@@ -339,6 +339,6 @@ addition to the attractive technical challenge) made me start pprofile:
   This may be unintended, and may be fixed at some point in line_profiler.
 
 .. _line_profiler: https://github.com/rkern/line_profiler
-.. _Callgrind_Profile_Format: http://valgrind.org/docs/manual/cl-format.html
+.. _`Callgrind Profile Format`: http://valgrind.org/docs/manual/cl-format.html
 .. _kcachegrind: http://kcachegrind.sourceforge.net
 .. _qcachegrind: http://sourceforge.net/projects/qcachegrindwin/
