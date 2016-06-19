@@ -29,7 +29,6 @@ from functools import partial, wraps
 from time import time
 from warnings import warn
 import argparse
-import codecs
 import inspect
 import linecache
 import os
@@ -43,12 +42,13 @@ if sys.version_info < (3, ):
     # output. So instead of writing a lot of code to properly handle this, just
     # emit text the Python 2 way: don't specify encoding.
     def _open(name, mode, errors):
-      return open(name, mode)
+        return open(name, mode)
 
     def _reopen(stream, encoding=None, errors='strict'):
         return stream
 else:
-    _open = codecs.open
+    import codecs
+    _open = open
 
     def _reopen(stream, encoding=None, errors='strict'):
         """
