@@ -533,7 +533,7 @@ class ProfileRunnerBase(object):
             return func(*args, **kw)
 
     def runfile(self, fd, argv, fd_name='<unknown>', compile_flags=0,
-            dont_inherit=0):
+            dont_inherit=1):
         with fd:
             code = compile(fd.read(), fd_name, 'exec', flags=compile_flags,
                 dont_inherit=dont_inherit)
@@ -868,7 +868,7 @@ def runctx(cmd, globals, locals, filename=None, threads=True, verbose=False):
     """Similar to profile.runctx ."""
     _run(threads, verbose, 'runctx', filename, cmd, globals, locals)
 
-def runfile(fd, argv, fd_name='<unknown>', compile_flags=0, dont_inherit=0,
+def runfile(fd, argv, fd_name='<unknown>', compile_flags=0, dont_inherit=1,
         filename=None, threads=True, verbose=False):
     """
     Run code from given file descriptor with profiling enabled.
