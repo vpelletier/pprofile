@@ -24,8 +24,21 @@ As a module:
   import pprofile
 
   def someHotSpotCallable():
+      # Deterministic profiler
       profiler = pprofile.Profile()
       with profiler:
+          # Some hot-spot code
+      profiler.print_stats()
+
+  def someOtherHotSpotCallable():
+      # Statistic profiler
+      profiler = pprofile.StatisticalProfile()
+      runner = pprofile.StatisticalThread(
+          profiler=profiler,
+          period=0.001, # Sample every 1ms
+          single=True, # Only sample current thread
+      )
+      with runner:
           # Some hot-spot code
       profiler.print_stats()
 
