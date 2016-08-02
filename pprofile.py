@@ -375,7 +375,14 @@ class ProfileBase(object):
         print('events: hits us usphit', file=out)
         file_dict = self.file_dict
 
-        convertPath = _qCacheGringAdapt(_path_resolver(relative_path))
+        convertPath = _path_resolver(relative_path)
+        if os.path.sep != "/":
+            # qCacheGrind (windows build) needs at least one UNIX separator
+            # in path to find the file. Adapt here even if this is probably
+            # more of a qCacheGrind issue...
+            convertPath = lambda path, cascade=convertPath: cascade(
+                '/'.join(path.split(os.path.sep))
+            )
 
         for name in self._getFileNameList(filename, may_sort=False):
             printable_name = convertPath(name)
@@ -427,7 +434,7 @@ class ProfileBase(object):
         """
 
         file_dict = self.file_dict
-        convertPath = _qCacheGringAdapt(_path_resolver(relative_path))
+        convertPath = _path_resolver(relative_path)
 
         total_time = self.total_time
         command_profile = {
@@ -961,20 +968,6 @@ def runpath(path, argv, filename=None, threads=True, verbose=False):
     Run code from open-accessible file path with profiling enabled.
     """
     _run(threads, verbose, 'runpath', filename, path, argv)
-
-def _qCacheGringAdapt(path):
-    '''
-    qCacheGrind (windows build) needs at least one UNIX separator
-    in path to find the file. Adapt here even if this is probably
-    more of a qCacheGrind issue...
-    '''
-
-    if os.path.sep != "/":
-        path = lambda x, cascade=path: cascade(
-            '/'.join(x.split(os.path.sep))
-        )
-
-    return path
 
 def _path_resolver(relative_path=True):
     '''
