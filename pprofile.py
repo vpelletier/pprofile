@@ -380,8 +380,8 @@ class ProfileBase(object):
             # qCacheGrind (windows build) needs at least one UNIX separator
             # in path to find the file. Adapt here even if this is probably
             # more of a qCacheGrind issue...
-            convertPath = lambda path, cascade=convertPath: cascade(
-                '/'.join(path.split(os.path.sep))
+            convertPath = lambda x, cascade=convertPath: cascade(
+                '/'.join(x.split(os.path.sep))
             )
 
         for name in self._getFileNameList(filename, may_sort=False):
@@ -969,6 +969,7 @@ def runpath(path, argv, filename=None, threads=True, verbose=False):
     """
     _run(threads, verbose, 'runpath', filename, path, argv)
 
+_allsep = os.sep + (os.altsep or '')
 def _path_resolver(relative_path=True):
     '''
     Returns a function that manipulates a path string to be relative if
@@ -977,13 +978,12 @@ def _path_resolver(relative_path=True):
     Inspired from zipfile.write().
     '''
 
-    allsep = os.sep + (os.altsep or '')
     relpath_fn = lambda name: name
 
     if relative_path:
         relpath_fn = lambda name: os.path.normpath(
             os.path.splitdrive(name)[1]
-        ).lstrip(allsep)
+        ).lstrip(_allsep)
 
     return relpath_fn
 
@@ -1070,10 +1070,10 @@ def main():
     finally:
         if options.out == '-':
             out = _reopen(sys.stdout, errors='replace')
-            close_fn = lambda: None
+            close = lambda: None
         else:
             out = _open(options.out, 'w', errors='replace')
-            close_fn = out.close
+            close = out.close
         if options.exclude:
             exclusion_search_list = [
                 re.compile(x).search for x in options.exclude
@@ -1096,7 +1096,7 @@ def main():
             commandline=repr(args),
             relative_path=relative_path,
         )
-        close_fn()
+        close()
         zip_path = options.zipfile
         if zip_path:
             convertPath = _path_resolver(relative_path)
