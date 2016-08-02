@@ -443,58 +443,57 @@ class ProfileBase(object):
             'command_profile': [],
         }
 
-        if total_time:
-            for name in self._getFileNameList(filename):
-                file_timing = file_dict[name]
-                file_total_time = file_timing.getTotalTime()
+        for name in self._getFileNameList(filename):
+            file_timing = file_dict[name]
+            file_total_time = file_timing.getTotalTime()
 
-                funcname = False
-                call_list_by_line = file_timing.getCallListByLine()
+            funcname = False
+            call_list_by_line = file_timing.getCallListByLine()
 
-                module = convertPath(name)
-                file_profile = {
-                    'duration': file_total_time,
-                    'file_name': name,
-                    'file_profile': [],
-                    'file_module': module,
+            module = convertPath(name)
+            file_profile = {
+                'duration': file_total_time,
+                'file_name': name,
+                'file_profile': [],
+                'file_module': module,
+            }
+            for lineno, func, firstlineno, hits, duration, line in self._iterFile(
+                name, call_list_by_line
+            ):
+                line_profile = {
+                    'hits': hits,
+                    'duration': duration,
+                    'line_no': lineno,
+                    'line': line.rstrip(),
+                    'line_profile': [],
                 }
-                for lineno, func, firstlineno, hits, duration, line in self._iterFile(
-                    name, call_list_by_line
-                ):
-                    line_profile = {
+
+                callee_data = call_list_by_line.get(lineno, ())
+                if callee_data and func is None:
+                    func, firstlineno = callee_data[0][:2]
+
+                if func in [ '<module>', None ]:
+                    line_profile['block_id'] = [
+                        module, None, func
+                    ]
+                else:
+                    line_profile['block_id'] = [
+                        module, func, firstlineno
+                    ]
+
+                for _, _, hits, duration, callee_file, callee_line, callee_name in callee_data:
+                    callee_file = convertPath(callee_file)
+
+                    line_profile['line_profile'].append({
                         'hits': hits,
                         'duration': duration,
-                        'line_no': lineno,
-                        'line': line.rstrip(),
-                        'line_profile': [],
-                    }
+                        'callee_file': callee_file,
+                        'callee_line': callee_line,
+                        'callee_name': callee_name,
+                    })
 
-                    callee_data = call_list_by_line.get(lineno, ())
-                    if callee_data and func is None:
-                        func, firstlineno = callee_data[0][:2]
-
-                    if func in [ '<module>', None ]:
-                        line_profile['block_id'] = [
-                            module, None, func
-                        ]
-                    else:
-                        line_profile['block_id'] = [
-                            module, func, firstlineno
-                        ]
-
-                    for _, _, hits, duration, callee_file, callee_line, callee_name in callee_data:
-                        callee_file = convertPath(callee_file)
-
-                        line_profile['line_profile'].append({
-                            'hits': hits,
-                            'duration': duration,
-                            'callee_file': callee_file,
-                            'callee_line': callee_line,
-                            'callee_name': callee_name,
-                        })
-
-                    file_profile['file_profile'].append(line_profile)
-                command_profile['command_profile'].append(file_profile)
+                file_profile['file_profile'].append(line_profile)
+            command_profile['command_profile'].append(file_profile)
 
         return command_profile
 
