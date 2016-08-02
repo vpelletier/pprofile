@@ -970,10 +970,11 @@ def runpath(path, argv, filename=None, threads=True, verbose=False):
     _run(threads, verbose, 'runpath', filename, path, argv)
 
 _allsep = os.sep + (os.altsep or '')
-def _path_resolver(relative_path=True):
+def _path_resolver(relative_path):
     '''
-    Returns a function that manipulates a path string to be relative if
-    `relative_path' is true, otherwise it returns the identity function.
+    Returns a function that manipulates a path string to be relative (strip
+    absolute components from path) *if* `relative_path' is truthy, otherwise it
+    returns the identity function.
 
     Inspired from zipfile.write().
     '''
