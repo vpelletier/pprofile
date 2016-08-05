@@ -176,7 +176,7 @@ class ZopeMixIn(object):
         for index, (query, time_list) in enumerate(
                     sorted(
                         self.sql_dict.iteritems(),
-                        key=lambda x: sum(x[1]),
+                        key=lambda x: (sum(x[1]), len(x[1])),
                         reverse=True,
                     ),
                 ):
