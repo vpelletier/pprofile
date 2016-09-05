@@ -900,7 +900,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('script', help='Python script to execute (optionaly '
-        'followed by its arguments)')
+        'followed by its arguments)', nargs=1)
+    parser.add_argument('argv', nargs=argparse.REMAINDER)
     parser.add_argument('-o', '--out', default='-',
         help='Write annotated sources to this file. Defaults to stdout.')
     parser.add_argument('-z', '--zipfile',
@@ -935,7 +936,7 @@ def main():
         help='Include files whose name would have otherwise excluded. '
         'If no exclusion was specified, all paths are excluded first.')
 
-    options, args = parser.parse_known_args()
+    options = parser.parse_args()
     if options.exclude_syspath:
         options.exclude.extend('^' + re.escape(x) for x in sys.path)
     if options.include and not options.exclude:
@@ -950,7 +951,7 @@ def main():
                 for regex in options.include:
                     print('\t' + regex, file=sys.stderr)
 
-    args.insert(0, options.script)
+    args = options.script + options.argv
     if options.format is None:
         if os.path.basename(options.out).startswith('cachegrind.out.'):
             options.format = 'callgrind'
@@ -971,7 +972,7 @@ def main():
             klass = Profile
         prof = runner = klass(verbose=options.verbose)
     try:
-        runner.runpath(options.script, args)
+        runner.runpath(args[0], args)
     finally:
         if options.out == '-':
             out = _reopen(sys.stdout, errors='replace')
