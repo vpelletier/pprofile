@@ -766,6 +766,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
           become meaningful.
           The larger, the less profiling overhead, but requires long profiling
           session to get meaningful results.
+          Available on instances as the "profiler" property.
         single (bool)
           Profile only the thread which created this instance.
         group, name
