@@ -620,9 +620,17 @@ class Profile(ProfileBase, ProfileRunnerBase):
         else:
             warn('Duplicate "disable" call')
 
-    __enter__ = enable
+    def __enter__(self):
+        """
+        __enter__() -> self
+        """
+        self.enable()
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        __exit__(*excinfo) -> None. Disables profiling.
+        """
         self.disable()
 
     def _traceEvent(self, frame, event):
@@ -800,9 +808,17 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
             self.profiler.total_time += time() - self._start_time
             self._start_time = None
 
-    __enter__ = start
+    def __enter__(self):
+        """
+        __enter__() -> self
+        """
+        self.start()
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        __exit__(*excinfo) -> None. Stops and joins profiling thread.
+        """
         self.stop()
         self.join()
 
