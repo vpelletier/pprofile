@@ -774,7 +774,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
           become meaningful.
           The larger, the less profiling overhead, but requires long profiling
           session to get meaningful results.
-          Available on instances as the "profiler" property.
+          Available on instances as the "profiler" read-only property.
         single (bool)
           Profile only the thread which created this instance.
         group, name
@@ -788,9 +788,13 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         )
         self._stop_event = threading.Event()
         self._period = period
-        self.profiler = profiler
+        self._profiler = profiler
         profiler.total_time = 0
         self.daemon = True
+
+    @property
+    def profiler(self):
+        return self._profiler
 
     def start(self):
         self._start_time = time()
@@ -805,7 +809,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         if self.is_alive():
             self._can_run = False
             self._stop_event.set()
-            self.profiler.total_time += time() - self._start_time
+            self._profiler.total_time += time() - self._start_time
             self._start_time = None
 
     def __enter__(self):
@@ -827,7 +831,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         test = self._test
         if test is None:
             test = lambda x, ident=self.ident: ident != x
-        sample = self.profiler.sample
+        sample = self._profiler.sample
         stop_event = self._stop_event
         wait = partial(stop_event.wait, self._period)
         while self._can_run:
@@ -841,23 +845,23 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
 
     def callgrind(self, *args, **kw):
         warn('deprecated', DeprecationWarning)
-        return self.profiler.callgrind(*args, **kw)
+        return self._profiler.callgrind(*args, **kw)
 
     def annotate(self, *args, **kw):
         warn('deprecated', DeprecationWarning)
-        return self.profiler.annotate(*args, **kw)
+        return self._profiler.annotate(*args, **kw)
 
     def dump_stats(self, *args, **kw):
         warn('deprecated', DeprecationWarning)
-        return self.profiler.dump_stats(*args, **kw)
+        return self._profiler.dump_stats(*args, **kw)
 
     def print_stats(self, *args, **kw):
         warn('deprecated', DeprecationWarning)
-        return self.profiler.print_stats(*args, **kw)
+        return self._profiler.print_stats(*args, **kw)
 
     def iterSource(self, *args, **kw):
         warn('deprecated', DeprecationWarning)
-        return self.profiler.iterSource(*args, **kw)
+        return self._profiler.iterSource(*args, **kw)
 
 # profile/cProfile-like API (no sort parameter !)
 def _run(threads, verbose, func_name, filename, *args, **kw):
