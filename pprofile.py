@@ -57,13 +57,20 @@ else:
         """
         if encoding is None:
             encoding = stream.encoding
-        # XXX: Python3 < 3.2 does not have stream.buffer so this will raise.
+        # XXX: Python3 < 3.2 and ipykernel.iostream.OutStream at least up to
+        # 4.5.0 do not have stream.buffer.
         # I do not see a way to change errors without also potentially changing
         # the encoding, and there does not seem to be a way to change encoding
         # without having to access the binary stream.
-        # Also, I do not expect many 3.0 and 3.1 to be still used. Feel free to
-        # report a bug if it raises.
-        return codecs.getwriter(encoding)(stream.buffer, errors=errors)
+        try:
+            buf = stream.buffer
+        except AttributeError:
+            warn(
+                'Cannot access "%r.buffer", invalid entities from source '
+                'files will cause errors when annotating.' % (stream, )
+            )
+            return stream
+        return codecs.getwriter(encoding)(buf, errors=errors)
 
 def _getFuncOrFile(func, module, line):
     if func == '<module>' or func is None:
