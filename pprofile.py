@@ -527,6 +527,12 @@ class ProfileBase(object):
         self.annotate(_reopen(sys.stdout, errors='replace'))
 
 class ProfileRunnerBase(object):
+    def __enter__(self):
+        raise NotImplementedError
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        raise NotImplementedError
+
     # profile/cProfile-like API
     def runctx(self, cmd, globals, locals):
         """Similar to profile.Profile.runctx ."""
