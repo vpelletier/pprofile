@@ -7,7 +7,7 @@ Usage
 
 As a command::
 
-  $ pprofile some_python_executable
+  $ pprofile some_python_executable arg1 ...
 
 Once `some_python_executable` returns, prints annotated code of each file
 involved in the execution.
@@ -15,7 +15,14 @@ involved in the execution.
 As a command, ignoring any files from default `sys.path` (ie, python modules
 themselves), for shorter output::
 
-  $ pprofile --exclude-syspath some_python_executable
+  $ pprofile --exclude-syspath some_python_executable arg1 ...
+
+Executing a module, like :code:`python -m`. `--exclude-syspath` is not
+recommended in this mode, as it will likely hide what you indent to profile.
+Also, explicitly ending pprofile arguments with `--` will prevent accidentally
+stealing command's arguments::
+
+  $ pprofile -m some_python_module -- arg1 ...
 
 As a module:
 

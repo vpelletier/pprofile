@@ -58,6 +58,7 @@ import inspect
 import linecache
 import os
 import re
+import runpy
 import sys
 import threading
 import zipfile
@@ -603,6 +604,19 @@ class ProfileRunnerBase(object):
         finally:
             sys.path[:] = original_sys_path
 
+    def runmodule(self, module, argv):
+        original_sys_argv = list(sys.argv)
+        original_sys_path0 = sys.path[0]
+        try:
+            sys.path[0] = os.getcwd()
+            sys.argv[:] = argv
+            with self():
+                runpy.run_module(module, run_name='__main__', alter_sys=True)
+        finally:
+            sys.argv[:] = original_sys_argv
+            sys.path[0] = original_sys_path0
+        return self
+
 class Profile(ProfileBase, ProfileRunnerBase):
     """
     Deterministic, recursive, line-granularity, profiling class.
@@ -992,7 +1006,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('script', help='Python script to execute (optionaly '
-        'followed by its arguments)', nargs=1)
+        'followed by its arguments)', nargs='?')
     parser.add_argument('argv', nargs=argparse.REMAINDER)
     parser.add_argument('-o', '--out', default='-',
         help='Write annotated sources to this file. Defaults to stdout.')
@@ -1009,6 +1023,10 @@ def main():
     parser.add_argument('-s', '--statistic', default=0, type=float,
         help='Use this period for statistic profiling, or use deterministic '
         'profiling when 0.')
+    parser.add_argument('-m', dest='module',
+        help='Searches sys.path for the named module and runs the '
+        'corresponding .py file as a script. When given, positional arguments'
+        'become sys.argv[1:]')
 
     group = parser.add_argument_group(
         title='Filtering',
@@ -1043,7 +1061,19 @@ def main():
                 for regex in options.include:
                     print('\t' + regex, file=sys.stderr)
 
-    args = options.script + options.argv
+    if options.module is None:
+        if options.script is None:
+            parser.error('too few arguments')
+        args = [options.script] + options.argv
+        runner_method_args = (args[0], args)
+        runner_method_id = 'runpath'
+    else:
+        args = [options.module]
+        if options.script is not None:
+            args.append(options.script)
+        args.extend(options.argv)
+        runner_method_args = (options.module, args)
+        runner_method_id = 'runmodule'
     if options.format is None:
         if os.path.basename(options.out).startswith('cachegrind.out.'):
             options.format = 'callgrind'
@@ -1064,7 +1094,7 @@ def main():
             klass = Profile
         prof = runner = klass(verbose=options.verbose)
     try:
-        runner.runpath(args[0], args)
+        getattr(runner, runner_method_id)(*runner_method_args)
     finally:
         if options.out == '-':
             out = _reopen(sys.stdout, errors='replace')
