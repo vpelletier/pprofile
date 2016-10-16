@@ -731,16 +731,16 @@ class ThreadProfile(Profile):
         threading.settrace(None)
         self._local_trace = None
 
-class StatisticalProfile(ProfileBase):
+class StatisticProfile(ProfileBase):
     """
-    Statistical profiling class.
+    Statistic profiling class.
 
     This class does not gather its own samples by itself.
     Instead, it must be provided with call stacks (as returned by
     sys._getframe() or sys._current_frames()).
     """
     def __init__(self):
-        super(StatisticalProfile, self).__init__()
+        super(StatisticProfile, self).__init__()
         self.total_time = 1
 
     def sample(self, frame):
@@ -760,11 +760,14 @@ class StatisticalProfile(ProfileBase):
             frame = caller
             called_code = caller_code
 
-class StatisticalThread(threading.Thread, ProfileRunnerBase):
+# BBB
+StatisticalProfile = StatisticProfile
+
+class StatisticThread(threading.Thread, ProfileRunnerBase):
     """
     Usage in a nutshell:
-      profiler = StatisticalProfile()
-      pt = StatisticalThread(profiler)
+      profiler = StatisticProfile()
+      pt = StatisticThread(profiler)
       with pt:
         # do stuff
       profiler.print_stats()
@@ -789,7 +792,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
         """
         if single:
             self._test = lambda x, ident=threading.current_thread().ident: ident == x
-        super(StatisticalThread, self).__init__(
+        super(StatisticThread, self).__init__(
             group=group,
             name=name,
         )
@@ -806,7 +809,7 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
     def start(self):
         self._start_time = time()
         self._can_run = True
-        super(StatisticalThread, self).start()
+        super(StatisticThread, self).start()
 
     def stop(self):
         """
@@ -869,6 +872,9 @@ class StatisticalThread(threading.Thread, ProfileRunnerBase):
     def iterSource(self, *args, **kw):
         warn('deprecated', DeprecationWarning)
         return self._profiler.iterSource(*args, **kw)
+
+# BBB
+StatisticalThread = StatisticThread
 
 # profile/cProfile-like API (no sort parameter !)
 def _run(threads, verbose, func_name, filename, *args, **kw):
