@@ -110,6 +110,9 @@ def _getFuncOrFile(func, module, line):
     else:
         return '%s:%s' % (func, line)
 
+def _isCallgrindName(filepath):
+    return os.path.basename(filepath).startswith('cachegrind.out.')
+
 class _FileTiming(object):
     """
     Accumulation of profiling statistics (line and call durations) for a given
@@ -548,8 +551,12 @@ class ProfileBase(object):
         """
         Similar to profile.Profile.dump_stats - but different output format !
         """
-        with _open(filename, 'w', errors='replace') as out:
-            self.annotate(out)
+        if _isCallgrindName(filename):
+            with open(filename, 'w') as out:
+                self.callgrind(out)
+        else:
+            with _open(filename, 'w', errors='replace') as out:
+                self.annotate(out)
 
     def print_stats(self):
         """
@@ -1075,7 +1082,7 @@ def main():
         runner_method_args = (options.module, args)
         runner_method_id = 'runmodule'
     if options.format is None:
-        if os.path.basename(options.out).startswith('cachegrind.out.'):
+        if _isCallgrindName(options.out):
             options.format = 'callgrind'
         else:
             options.format = 'text'
