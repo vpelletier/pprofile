@@ -14,6 +14,31 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+"""
+pprofile - Line-granularity, thread-aware deterministic and statistic
+pure-python profiler
+
+Usage as a command line:
+$ pprofile --exclude-syspath some_python_executable arg1 ...
+$ pprofile --exclude-syspath -m some_python_module -- arg1 ...
+$ python -m pprofile --exclude-syspath some_python_executable arg1 ...
+$ python -m pprofile -m some_python_module -- arg1 ...
+See --help for all options.
+
+Usage as a python module:
+
+Deterministic profiling:
+>>> prof = pprofile.Profile()
+>>> with prof():
+>>>     # Code to profile
+>>> prof.print_stats()
+
+Statistic profiling:
+>>> prof = StatisticalProfile()
+>>> with prof():
+>>>     # Code to profile
+>>> prof.print_stats()
+"""
 from __future__ import print_function
 from collections import defaultdict, deque
 from functools import partial, wraps
@@ -36,6 +61,12 @@ import re
 import sys
 import threading
 import zipfile
+
+__all__ = (
+    'ProfileBase', 'ProfileRunnerBase', 'Profile', 'ThreadProfile',
+    'StatisticProfile', 'StatisticThread', 'run', 'runctx', 'runfile',
+    'runpath',
+)
 
 if sys.version_info < (3, ):
     # Python 2.x linecache returns non-decoded strings, which cause errors when
