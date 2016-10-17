@@ -527,6 +527,9 @@ class ProfileBase(object):
         self.annotate(_reopen(sys.stdout, errors='replace'))
 
 class ProfileRunnerBase(object):
+    def __call__(self):
+        return self
+
     def __enter__(self):
         raise NotImplementedError
 
@@ -536,13 +539,13 @@ class ProfileRunnerBase(object):
     # profile/cProfile-like API
     def runctx(self, cmd, globals, locals):
         """Similar to profile.Profile.runctx ."""
-        with self:
+        with self():
             exec(cmd, globals, locals)
         return self
 
     def runcall(self, func, *args, **kw):
         """Similar to profile.Profile.runcall ."""
-        with self:
+        with self():
             return func(*args, **kw)
 
     def runfile(self, fd, argv, fd_name='<unknown>', compile_flags=0,
@@ -737,7 +740,7 @@ class ThreadProfile(Profile):
         threading.settrace(None)
         self._local_trace = None
 
-class StatisticProfile(ProfileBase):
+class StatisticProfile(ProfileBase, ProfileRunnerBase):
     """
     Statistic profiling class.
 
@@ -765,6 +768,24 @@ class StatisticProfile(ProfileBase):
             called_timing = caller_timing
             frame = caller
             called_code = caller_code
+
+    def __call__(self, period=.001, single=True, group=None, name=None):
+        """
+        Instanciate StatisticThread.
+
+        >>> s_profile = StatisticProfile()
+        >>> with s_profile(single=False):
+        >>>    # Code to profile
+        Is equivalent to:
+        >>> s_profile = StatisticProfile()
+        >>> s_thread = StatisticThread(profiler=s_profile, single=False)
+        >>> with s_thread:
+        >>>    # Code to profile
+        """
+        return StatisticThread(
+            profiler=self, period=period, single=single, group=group,
+            name=name,
+        )
 
 # BBB
 StatisticalProfile = StatisticProfile
