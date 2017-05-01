@@ -410,11 +410,11 @@ class ProfileBase(object):
             files which may not match with profiled code.
         """
         print('version: 1', file=out)
-        if commandline is not None:
-            print('cmd:', commandline, file=out)
         print('creator: pprofile', file=out)
         print('event: usphit :us/hit', file=out)
         print('events: hits us usphit', file=out)
+        if commandline is not None:
+            print('cmd:', commandline, file=out)
         file_dict = self.file_dict
         if relative_path:
             convertPath = _relpath
