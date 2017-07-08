@@ -588,18 +588,18 @@ class ProfileRunnerBase(object):
             return func(*args, **kw)
 
     def runfile(self, fd, argv, fd_name='<unknown>', compile_flags=0,
-            dont_inherit=1):
+            dont_inherit=1, globals=()):
         with fd:
             code = compile(fd.read(), fd_name, 'exec', flags=compile_flags,
                 dont_inherit=dont_inherit)
         original_sys_argv = list(sys.argv)
+        ctx_globals = globals.copy()
+        ctx_globals['__file__'] = fd_name
+        ctx_globals['__name__'] = '__main__'
+        ctx_globals['__package__'] = None
         try:
             sys.argv[:] = argv
-            return self.runctx(code, {
-                '__file__': fd_name,
-                '__name__': '__main__',
-                '__package__': None,
-            }, None)
+            return self.runctx(code, ctx_globals, None)
         finally:
             sys.argv[:] = original_sys_argv
 
