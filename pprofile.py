@@ -1032,7 +1032,7 @@ def main():
         'profiling when 0.')
     parser.add_argument('-m', dest='module',
         help='Searches sys.path for the named module and runs the '
-        'corresponding .py file as a script. When given, positional arguments'
+        'corresponding .py file as a script. When given, positional arguments '
         'become sys.argv[1:]')
 
     group = parser.add_argument_group(
