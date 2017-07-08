@@ -303,7 +303,7 @@ class ProfileBase(object):
 
     def _getFileTiming(self, frame):
         try:
-            return self.global_dict[id(frame.f_globals)]
+            return self.global_dict[(id(frame.f_globals), frame.f_code.co_filename)]
         except KeyError:
             f_globals = frame.f_globals
             name = self._getFilename(frame.f_code.co_filename, f_globals)
