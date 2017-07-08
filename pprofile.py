@@ -54,14 +54,20 @@ from functools import partial, wraps
 from time import time
 from warnings import warn
 import argparse
+import cStringIO
 import inspect
 import linecache
 import os
 import re
 import runpy
+import shlex
 import sys
 import threading
 import zipfile
+try:
+    from IPython.core.magic import register_line_cell_magic
+except ImportError:
+    register_line_cell_magic = lambda x: x
 
 __all__ = (
     'ProfileBase', 'ProfileRunnerBase', 'Profile', 'ThreadProfile',
@@ -588,7 +594,7 @@ class ProfileRunnerBase(object):
             return func(*args, **kw)
 
     def runfile(self, fd, argv, fd_name='<unknown>', compile_flags=0,
-            dont_inherit=1, globals=()):
+            dont_inherit=1, globals={}):
         with fd:
             code = compile(fd.read(), fd_name, 'exec', flags=compile_flags,
                 dont_inherit=dont_inherit)
@@ -1005,13 +1011,13 @@ def _relpath(name):
     """
     return os.path.normpath(os.path.splitdrive(name)[1]).lstrip(_allsep)
 
-def main():
+def _main(argv, stdin=None):
     format_dict = {
         'text': 'annotate',
         'callgrind': 'callgrind',
     }
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(argv[0])
     parser.add_argument('script', help='Python script to execute (optionaly '
         'followed by its arguments)', nargs='?')
     parser.add_argument('argv', nargs=argparse.REMAINDER)
@@ -1053,7 +1059,7 @@ def main():
         help='Include files whose name would have otherwise excluded. '
         'If no exclusion was specified, all paths are excluded first.')
 
-    options = parser.parse_args()
+    options = parser.parse_args(argv[1:])
     if options.exclude_syspath:
         options.exclude.extend('^' + re.escape(x) for x in sys.path)
     if options.include and not options.exclude:
@@ -1077,6 +1083,20 @@ def main():
             'argv': args,
         }
         runner_method_id = 'runpath'
+    elif stdin is not None and options.module == '-':
+        # Undocumented way of using -m, used internaly by %%pprofile
+        args = ['<stdin>']
+        if options.script is not None:
+            args.append(options.script)
+        args.extend(options.argv)
+        import __main__
+        runner_method_kw = {
+            'fd': stdin,
+            'argv': args,
+            'fd_name': '<stdin>',
+            'globals': __main__.__dict__,
+        }
+        runner_method_id = 'runfile'
     else:
         args = [options.module]
         if options.script is not None:
@@ -1158,6 +1178,25 @@ def main():
         # Mostly useful for regresion testing, as exceptions raised in threads
         # do not change exit status.
         sys.exit(1)
+
+def pprofile(line, cell=None):
+    """
+    Profile line execution.
+    """
+    if cell is None:
+        # TODO: detect and use arguments (statistical profiling, ...) ?
+        return run(line)
+    else:
+        return _main(['%%pprofile', '-m', '-'] + shlex.split(line), cStringIO.StringIO(cell))
+try:
+    register_line_cell_magic(pprofile)
+except NameError:
+    # Happens when ipython can be imported, but is not currently running.
+    pass
+del pprofile
+
+def main():
+    _main(sys.argv)
 
 if __name__ == '__main__':
     main()
