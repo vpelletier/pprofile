@@ -1072,14 +1072,20 @@ def main():
         if options.script is None:
             parser.error('too few arguments')
         args = [options.script] + options.argv
-        runner_method_args = (args[0], args)
+        runner_method_kw = {
+            'path': args[0],
+            'argv': args,
+        }
         runner_method_id = 'runpath'
     else:
         args = [options.module]
         if options.script is not None:
             args.append(options.script)
         args.extend(options.argv)
-        runner_method_args = (options.module, args)
+        runner_method_kw = {
+            'module': options.module,
+            'argv': args,
+        }
         runner_method_id = 'runmodule'
     if options.format is None:
         if _isCallgrindName(options.out):
@@ -1101,7 +1107,7 @@ def main():
             klass = Profile
         prof = runner = klass(verbose=options.verbose)
     try:
-        getattr(runner, runner_method_id)(*runner_method_args)
+        getattr(runner, runner_method_id)(**runner_method_kw)
     finally:
         if options.out == '-':
             out = _reopen(sys.stdout, errors='replace')
