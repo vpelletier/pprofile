@@ -49,6 +49,43 @@ As a module:
 
 For advanced usage, see :code:`pprofile --help` and :code:`pydoc pprofile`.
 
+Profiling overhead
+------------------
+
+pprofile default mode (`Deterministic profiling`_) has a large overhead.
+Part of the reason being that it is written to be as portable as possible
+(so no C extension). This large overhead can be an issue, which can be
+avoided by using `Statistic profiling`_, at the cost of some result
+readability decrease.
+
+Rule of thumb:
+
++-----------------------------+----------------------------+------------------------+
+| Code to profile runs for... | `Deterministic profiling`_ | `Statistic profiling`_ |
++=============================+============================+========================+
+| a few seconds               | Yes                        | No [#]_                |
++-----------------------------+----------------------------+------------------------+
+| a few minutes               | Maybe                      | Yes                    |
++-----------------------------+----------------------------+------------------------+
+| more (ex: daemon)           | No                         | Yes [#]_               |
++-----------------------------+----------------------------+------------------------+
+
+Once you identified the hot spot and you decide you need finer-grained
+profiling to understand what needs fixing, you should try to make to-profile
+code run for shorter time so you can reasonably use deterministic profiling:
+use a smaller data set triggering the same code path, modify the code to only
+enable profiling on small pieces of code...
+
+.. [#] Statistic profiling will not have time to collect
+       enough samples to produce usable output.
+
+.. [#] You may want to consider triggering pprofile from
+       a signal handler or other IPC mechanism to profile
+       a shorter subset. See `zpprofile.py` for how it can
+       be used to profile code inside a running (zope)
+       service (in which case the IPC mechanism is just
+       Zope normal URL handling).
+
 Output
 ======
 
