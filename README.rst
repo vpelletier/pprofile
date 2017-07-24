@@ -55,7 +55,7 @@ Profiling overhead
 pprofile default mode (`Deterministic profiling`_) has a large overhead.
 Part of the reason being that it is written to be as portable as possible
 (so no C extension). This large overhead can be an issue, which can be
-avoided by using `Statistic profiling`_, at the cost of some result
+avoided by using `Statistic profiling`_ at the cost of some result
 readability decrease.
 
 Rule of thumb:
