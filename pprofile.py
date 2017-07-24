@@ -1190,8 +1190,8 @@ def pprofile(line, cell=None):
         return _main(['%%pprofile', '-m', '-'] + shlex.split(line), cStringIO.StringIO(cell))
 try:
     register_line_cell_magic(pprofile)
-except NameError:
-    # Happens when ipython can be imported, but is not currently running.
+except Exception:
+    # ipython can be imported, but may not be currently running.
     pass
 del pprofile
 
