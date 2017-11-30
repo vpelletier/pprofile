@@ -18,7 +18,7 @@ themselves), for shorter output::
   $ pprofile --exclude-syspath some_python_executable arg1 ...
 
 Executing a module, like :code:`python -m`. `--exclude-syspath` is not
-recommended in this mode, as it will likely hide what you indent to profile.
+recommended in this mode, as it will likely hide what you intend to profile.
 Also, explicitly ending pprofile arguments with `--` will prevent accidentally
 stealing command's arguments::
 
