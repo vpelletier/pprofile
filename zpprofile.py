@@ -66,7 +66,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.encoders import encode_quopri
-from cStringIO import StringIO
+from io import StringIO
 import os
 from collections import defaultdict
 import pprofile

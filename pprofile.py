@@ -54,7 +54,7 @@ from functools import partial, wraps
 from time import time
 from warnings import warn
 import argparse
-import cStringIO
+from io import StringIO
 import inspect
 import linecache
 import os
@@ -1187,7 +1187,7 @@ def pprofile(line, cell=None):
         # TODO: detect and use arguments (statistical profiling, ...) ?
         return run(line)
     else:
-        return _main(['%%pprofile', '-m', '-'] + shlex.split(line), cStringIO.StringIO(cell))
+        return _main(['%%pprofile', '-m', '-'] + shlex.split(line), StringIO(cell))
 try:
     register_line_cell_magic(pprofile)
 except Exception:
