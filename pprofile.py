@@ -422,10 +422,8 @@ class ProfileBase(object):
         if commandline is not None:
             print('cmd:', commandline, file=out)
         file_dict = self.file_dict
-        if relative_path:
-            convertPath = _relpath
-        else:
-            convertPath = lambda x: x
+
+        convertPath = _path_resolver(relative_path)
         if os.path.sep != "/":
             # qCacheGrind (windows build) needs at least one UNIX separator
             # in path to find the file. Adapt here even if this is probably
@@ -433,6 +431,7 @@ class ProfileBase(object):
             convertPath = lambda x, cascade=convertPath: cascade(
                 '/'.join(x.split(os.path.sep))
             )
+
         for name in self._getFileNameList(filename, may_sort=False):
             printable_name = convertPath(name)
             print('fl=%s' % printable_name, file=out)
@@ -464,6 +463,88 @@ class ProfileBase(object):
                     print('calls=%s' % hits, callee_line, file=out)
                     duration *= 1000000
                     print(lineno, hits, int(duration), int(duration / hits), file=out)
+
+    def get_stats(self, filename=None, commandline=None, relative_path=False):
+        """
+        Store annotated source code with current profiling statistics to python
+        dictionary object and return.
+        Time unit: second.
+        filename (str, collection of str)
+            If provided, dump stats for given source file(s) only.
+            If unordered collection, it will get sorted by decreasing total
+            file score (total time if available, then total hit count).
+            By default, list for all known files.
+        commandline (anything with __str__)
+            If provided, will be output as the command line used to generate
+            this annotation.
+        relative_path (bool)
+            For compatibility with callgrind. Ignored.
+        """
+
+        file_dict = self.file_dict
+        convertPath = _path_resolver(relative_path)
+
+        total_time = self.total_time
+        command_profile = {
+            'duration': total_time,
+            'command_line': commandline,
+            'command_profile': [],
+        }
+
+        for name in self._getFileNameList(filename):
+            file_timing = file_dict[name]
+            file_total_time = file_timing.getTotalTime()
+
+            funcname = False
+            call_list_by_line = file_timing.getCallListByLine()
+
+            module = convertPath(name)
+            file_profile = {
+                'duration': file_total_time,
+                'file_name': name,
+                'file_profile': [],
+                'file_module': module,
+            }
+            for lineno, func, firstlineno, hits, duration, line in self._iterFile(
+                name, call_list_by_line
+            ):
+                line_profile = {
+                    'hits': hits,
+                    'duration': duration,
+                    'line_no': lineno,
+                    'line': line.rstrip(),
+                    'line_profile': [],
+                }
+
+                callee_data = call_list_by_line.get(lineno, ())
+                if callee_data and func is None:
+                    func, firstlineno = callee_data[0][:2]
+
+                if func in [ '<module>', None ]:
+                    line_profile['block_id'] = [
+                        module, None, func
+                    ]
+                else:
+                    line_profile['block_id'] = [
+                        module, func, firstlineno
+                    ]
+
+                for _, _, hits, duration, callee_file, callee_line, callee_name in callee_data:
+                    callee_file = convertPath(callee_file)
+
+                    line_profile['line_profile'].append({
+                        'hits': hits,
+                        'duration': duration,
+                        'callee_file': callee_file,
+                        'callee_line': callee_line,
+                        'callee_name': callee_name,
+                    })
+
+                file_profile['file_profile'].append(line_profile)
+            command_profile['command_profile'].append(file_profile)
+
+        return command_profile
+
 
     def annotate(self, out, filename=None, commandline=None, relative_path=False):
         """
@@ -946,6 +1027,10 @@ class StatisticThread(threading.Thread, ProfileRunnerBase):
         warn('deprecated', DeprecationWarning)
         return self._profiler.annotate(*args, **kw)
 
+    def get_stats(self, *args, **kw):
+        warn('deprecated', DeprecationWarning)
+        return self.profiler.get_stats(*args, **kw)
+
     def dump_stats(self, *args, **kw):
         warn('deprecated', DeprecationWarning)
         return self._profiler.dump_stats(*args, **kw)
@@ -1003,13 +1088,23 @@ def runpath(path, argv, filename=None, threads=True, verbose=False):
     _run(threads, verbose, 'runpath', filename, path, argv)
 
 _allsep = os.sep + (os.altsep or '')
+def _path_resolver(relative_path):
+    '''
+    Returns a function that manipulates a path string to be relative (strip
+    absolute components from path) *if* `relative_path' is truthy, otherwise it
+    returns the identity function.
 
-def _relpath(name):
-    """
-    Strip absolute components from path.
     Inspired from zipfile.write().
-    """
-    return os.path.normpath(os.path.splitdrive(name)[1]).lstrip(_allsep)
+    '''
+
+    relpath_fn = lambda name: name
+
+    if relative_path:
+        relpath_fn = lambda name: os.path.normpath(
+            os.path.splitdrive(name)[1]
+        ).lstrip(_allsep)
+
+    return relpath_fn
 
 def _main(argv, stdin=None):
     format_dict = {
@@ -1160,10 +1255,7 @@ def _main(argv, stdin=None):
         close()
         zip_path = options.zipfile
         if zip_path:
-            if relative_path:
-                convertPath = _relpath
-            else:
-                convertPath = lambda x: x
+            convertPath = _path_resolver(relative_path)
             with zipfile.ZipFile(
                         zip_path,
                         mode='w',
