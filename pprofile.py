@@ -259,22 +259,22 @@ class LocalDescriptor(threading.local):
             pass
 
 _ANNOTATE_HEADER = \
-    '%6s|%10s|' \
-    '%13s|%13s|%7s|' \
-    'Source code' % (
-        'Line #', 'Hits',
-        'Time', 'Time per hit', '%',
+    u'%6s|%10s|' \
+    u'%13s|%13s|%7s|' \
+    u'Source code' % (
+        u'Line #', u'Hits',
+        u'Time', u'Time per hit', u'%',
     )
-_ANNOTATE_HORIZONTAL_LINE = ''.join(x == '|' and '+' or '-'
+_ANNOTATE_HORIZONTAL_LINE = u''.join(x == u'|' and u'+' or u'-'
     for x in _ANNOTATE_HEADER)
 _ANNOTATE_FORMAT = \
-    '%(lineno)6i|%(hits)10i|' \
-    '%(time)13g|%(time_per_hit)13g|%(percent)6.2f%%|' \
-    '%(line)s'
+    u'%(lineno)6i|%(hits)10i|' \
+    u'%(time)13g|%(time_per_hit)13g|%(percent)6.2f%%|' \
+    u'%(line)s'
 _ANNOTATE_CALL_FORMAT = \
-    '(call)|%(hits)10i|' \
-    '%(time)13g|%(time_per_hit)13g|%(percent)6.2f%%|' \
-    '# %(callee_file)s:%(callee_line)s %(callee_name)s'
+    u'(call)|%(hits)10i|' \
+    u'%(time)13g|%(time_per_hit)13g|%(percent)6.2f%%|' \
+    u'# %(callee_file)s:%(callee_line)s %(callee_name)s'
 
 def _initStack():
     return deque([[time(), None, None]])
@@ -415,12 +415,12 @@ class ProfileBase(object):
             profiling result, so kcachegrind does not look in system-wide
             files which may not match with profiled code.
         """
-        print('version: 1', file=out)
-        print('creator: pprofile', file=out)
-        print('event: usphit :us/hit', file=out)
-        print('events: hits us usphit', file=out)
+        print(u'version: 1', file=out)
+        print(u'creator: pprofile', file=out)
+        print(u'event: usphit :us/hit', file=out)
+        print(u'events: hits us usphit', file=out)
         if commandline is not None:
-            print('cmd:', commandline, file=out)
+            print(u'cmd:', commandline, file=out)
         file_dict = self.file_dict
         if relative_path:
             convertPath = _relpath
@@ -435,7 +435,7 @@ class ProfileBase(object):
             )
         for name in self._getFileNameList(filename, may_sort=False):
             printable_name = convertPath(name)
-            print('fl=%s' % printable_name, file=out)
+            print(u'fl=%s' % printable_name, file=out)
             funcname = False
             call_list_by_line = file_dict[name].getCallListByLine()
             for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
@@ -447,23 +447,23 @@ class ProfileBase(object):
                     func, firstlineno = call_list[0][:2]
                 if funcname != func:
                     funcname = func
-                    print('fn=%s' % _getFuncOrFile(func,
+                    print(u'fn=%s' % _getFuncOrFile(func,
                         printable_name, firstlineno), file=out)
                 ticks = int(duration * 1000000)
                 if hits == 0:
                     ticksperhit = 0
                 else:
-                    ticksperhit = ticks / hits
-                print(lineno, hits, ticks, int(ticksperhit), file=out)
+                    ticksperhit = ticks // hits
+                print(u'%i %i %i %i' % (lineno, hits, ticks, ticksperhit), file=out)
                 for _, _, hits, duration, callee_file, callee_line, \
                         callee_name in sorted(call_list, key=lambda x: x[2:4]):
                     callee_file = convertPath(callee_file)
-                    print('cfl=%s' % callee_file, file=out)
-                    print('cfn=%s' % _getFuncOrFile(callee_name,
+                    print(u'cfl=%s' % callee_file, file=out)
+                    print(u'cfn=%s' % _getFuncOrFile(callee_name,
                         callee_file, callee_line), file=out)
-                    print('calls=%s' % hits, callee_line, file=out)
-                    duration *= 1000000
-                    print(lineno, hits, int(duration), int(duration / hits), file=out)
+                    print(u'calls=%i %i' % (hits, callee_line), file=out)
+                    ticks = int(duration * 1000000)
+                    print(u'%i %i %i %i' % (lineno, hits, ticks, ticks // hits), file=out)
 
     def annotate(self, out, filename=None, commandline=None, relative_path=False):
         """
@@ -486,8 +486,8 @@ class ProfileBase(object):
         file_dict = self.file_dict
         total_time = self.total_time
         if commandline is not None:
-            print('Command line:', commandline, file=out)
-        print('Total duration: %gs' % total_time, file=out)
+            print(u'Command line:', commandline, file=out)
+        print(u'Total duration: %gs' % total_time, file=out)
         if not total_time:
             return
         def percent(value, scale):
@@ -498,8 +498,8 @@ class ProfileBase(object):
             file_timing = file_dict[name]
             file_total_time = file_timing.getTotalTime()
             call_list_by_line = file_timing.getCallListByLine()
-            print('File:', name, file=out)
-            print('File duration: %gs (%.2f%%)' % (file_total_time,
+            print(u'File: %s' % name, file=out)
+            print(u'File duration: %gs (%.2f%%)' % (file_total_time,
                 percent(file_total_time, total_time)), file=out)
             print(_ANNOTATE_HEADER, file=out)
             print(_ANNOTATE_HORIZONTAL_LINE, file=out)
@@ -510,23 +510,23 @@ class ProfileBase(object):
                 else:
                     time_per_hit = 0
                 print(_ANNOTATE_FORMAT % {
-                    'lineno': lineno,
-                    'hits': hits,
-                    'time': duration,
-                    'time_per_hit': time_per_hit,
-                    'percent': percent(duration, total_time),
-                    'line': line.rstrip(),
+                    u'lineno': lineno,
+                    u'hits': hits,
+                    u'time': duration,
+                    u'time_per_hit': time_per_hit,
+                    u'percent': percent(duration, total_time),
+                    u'line': line.rstrip(),
                 }, file=out)
                 for _, _, hits, duration, callee_file, callee_line, \
                         callee_name in call_list_by_line.get(lineno, ()):
                     print(_ANNOTATE_CALL_FORMAT % {
-                        'hits': hits,
-                        'time': duration,
-                        'time_per_hit': duration / hits,
-                        'percent': percent(duration, total_time),
-                        'callee_file': callee_file,
-                        'callee_line': callee_line,
-                        'callee_name': callee_name,
+                        u'hits': hits,
+                        u'time': duration,
+                        u'time_per_hit': duration / hits,
+                        u'percent': percent(duration, total_time),
+                        u'callee_file': callee_file,
+                        u'callee_line': callee_line,
+                        u'callee_name': callee_name,
                     }, file=out)
 
     def _iterRawFile(self, name):
