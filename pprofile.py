@@ -134,9 +134,8 @@ class _FileTiming(object):
       as cheap in CPU as you can !
     """
     __slots__ = ('line_dict', 'call_dict', 'filename', 'global_dict',
-        'raw_filename', 'profiler')
-    def __init__(self, raw_filename, filename, global_dict, profiler):
-        self.raw_filename = raw_filename
+        'profiler')
+    def __init__(self, filename, global_dict, profiler):
         self.filename = filename
         self.global_dict = global_dict
         self.line_dict = {}
@@ -311,7 +310,6 @@ class ProfileBase(object):
                 file_timing = self.file_dict[name]
             except KeyError:
                 self.file_dict[name] = file_timing = self.FileTiming(
-                    frame.f_code.co_filename,
                     name,
                     f_globals,
                     self,
@@ -371,7 +369,7 @@ class ProfileBase(object):
         file_timing = self.file_dict[name]
         while True:
             lineno += 1
-            line = linecache.getline(file_timing.raw_filename, lineno,
+            line = linecache.getline(file_timing.filename, lineno,
                 file_timing.global_dict)
             func, firstlineno, hits, duration = file_timing.getHitStatsFor(
                 lineno)
@@ -534,7 +532,7 @@ class ProfileBase(object):
         file_timing = self.file_dict[name]
         while True:
             lineno += 1
-            line = linecache.getline(file_timing.raw_filename, lineno,
+            line = linecache.getline(file_timing.filename, lineno,
                 file_timing.global_dict)
             if not line:
                 break
