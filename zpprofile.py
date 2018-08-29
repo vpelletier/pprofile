@@ -116,7 +116,9 @@ class ZopeMixIn(object):
         self.sql_dict = defaultdict(list)
         self.zodb_dict = defaultdict(lambda: defaultdict(list))
 
-    def _getFilename(self, filename, f_globals):
+    def _getFilename(self, frame):
+        filename = super(ZopeMixIn, self)._getFilename(frame)
+        f_globals = frame.f_globals
         if 'Script (Python)' in filename:
             try:
                 script = f_globals['script']

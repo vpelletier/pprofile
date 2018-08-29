@@ -305,7 +305,7 @@ class ProfileBase(object):
             return self.global_dict[(id(frame.f_globals), frame.f_code.co_filename)]
         except KeyError:
             f_globals = frame.f_globals
-            name = self._getFilename(frame.f_code.co_filename, f_globals)
+            name = self._getFilename(frame)
             try:
                 file_timing = self.file_dict[name]
             except KeyError:
@@ -317,11 +317,11 @@ class ProfileBase(object):
             self.global_dict[(id(f_globals), frame.f_code.co_filename)] = file_timing
             return file_timing
 
-    def _getFilename(self, filename, f_globals):
+    def _getFilename(self, frame):
         """
         Overload in subclasses to customise filename generation.
         """
-        return filename
+        return frame.f_code.co_filename
 
     def getFilenameSet(self):
         """
