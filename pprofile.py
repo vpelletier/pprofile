@@ -110,11 +110,11 @@ else:
             return stream
         return codecs.getwriter(encoding)(buf, errors=errors)
 
-def _getFuncOrFile(func, module, line):
+def _getFuncOrFile(func, module):
     if func == '<module>' or func is None:
         return module
     else:
-        return '%s:%s' % (func, line)
+        return func
 
 def _isCallgrindName(filepath):
     return os.path.basename(filepath).startswith('cachegrind.out.')
@@ -446,7 +446,7 @@ class ProfileBase(object):
                 if funcname != func:
                     funcname = func
                     print(u'fn=%s' % _getFuncOrFile(func,
-                        printable_name, firstlineno), file=out)
+                        printable_name), file=out)
                 ticks = int(duration * 1000000)
                 if hits == 0:
                     ticksperhit = 0
@@ -458,7 +458,7 @@ class ProfileBase(object):
                     callee_file = convertPath(callee_file)
                     print(u'cfl=%s' % callee_file, file=out)
                     print(u'cfn=%s' % _getFuncOrFile(callee_name,
-                        callee_file, callee_line), file=out)
+                        callee_file), file=out)
                     print(u'calls=%i %i' % (hits, callee_line), file=out)
                     ticks = int(duration * 1000000)
                     print(u'%i %i %i %i' % (lineno, hits, ticks, ticks // hits), file=out)
