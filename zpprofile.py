@@ -71,19 +71,17 @@ import os
 from collections import defaultdict
 import pprofile
 
-_marker = object()
-
 try:
     import Products.ZMySQLDA.db
     DB_query_func_code = Products.ZMySQLDA.db.DB._query.func_code
 except (ImportError, AttributeError):
-    DB_query_func_code = _marker
+    DB_query_func_code = None
 
 try:
     import ZODB.Connection
     ZODB_setstate_func_code = ZODB.Connection.Connection._setstate.func_code
 except (ImportError, AttributeError):
-    ZODB_setstate_func_code = _marker
+    ZODB_setstate_func_code = None
 
 _ALLSEP = os.sep + (os.altsep or '')
 
