@@ -273,7 +273,7 @@ class ZopeMixIn(object):
             except KeyError:
                 return filename
             return self._rememberFile(
-                script.body().decode('utf-8') + (u'\n## %s\n' % script.id),
+                script.body().decode('utf-8'),
                 script.id,
                 '.py',
             )
