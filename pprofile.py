@@ -323,6 +323,13 @@ class ProfileBase(object):
         """
         return frame.f_code.co_filename
 
+    @staticmethod
+    def _getline(filename, lineno, global_dict):
+        """
+        Overload in subclasses to customise source retrieval.
+        """
+        return linecache.getline(filename, lineno, global_dict)
+
     def getFilenameSet(self):
         """
         Returns a set of profiled file names.
@@ -369,7 +376,7 @@ class ProfileBase(object):
         file_timing = self.file_dict[name]
         while True:
             lineno += 1
-            line = linecache.getline(file_timing.filename, lineno,
+            line = self._getline(file_timing.filename, lineno,
                 file_timing.global_dict)
             func, firstlineno, hits, duration = file_timing.getHitStatsFor(
                 lineno)
@@ -532,7 +539,7 @@ class ProfileBase(object):
         file_timing = self.file_dict[name]
         while True:
             lineno += 1
-            line = linecache.getline(file_timing.filename, lineno,
+            line = self._getline(file_timing.filename, lineno,
                 file_timing.global_dict)
             if not line:
                 break
