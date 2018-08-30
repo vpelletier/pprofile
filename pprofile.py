@@ -316,7 +316,7 @@ class ProfileBase(object):
                     f_globals,
                     self,
                 )
-            self.global_dict[id(f_globals)] = file_timing
+            self.global_dict[(id(f_globals), frame.f_code.co_filename)] = file_timing
             return file_timing
 
     def _getFilename(self, filename, f_globals):
