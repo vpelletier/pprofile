@@ -177,6 +177,11 @@ def disassemble(co, lasti=-1):
     return out.getvalue()
 
 class ZopeMixIn(object):
+    virtual__slots__ = (
+        'sql_dict',
+        'zodb_dict',
+        'fake_source_dict',
+    )
     __allow_access_to_unprotected_subobjects__ = 1
     FileTiming = ZopeFileTiming
 
@@ -352,10 +357,10 @@ class ZopeMixIn(object):
         return result.as_string(), result['content-type']
 
 class ZopeProfiler(ZopeMixIn, pprofile.Profile):
-    pass
+    __slots__ = ZopeMixIn.virtual__slots__
 
 class ZopeStatisticalProfile(ZopeMixIn, pprofile.StatisticalProfile):
-    pass
+    __slots__ = ZopeMixIn.virtual__slots__
 
 class ZopeStatisticalThread(pprofile.StatisticalThread):
     __allow_access_to_unprotected_subobjects__ = 1

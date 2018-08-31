@@ -293,6 +293,13 @@ class ProfileBase(object):
 
     Subclasses can override the "FileTiming" property to use a different class.
     """
+    __slots__ = (
+        'file_dict',
+        'global_dict',
+        'total_time',
+        '__dict__',
+        '__weakref__',
+    )
     FileTiming = _FileTiming
 
     def __init__(self):
@@ -670,6 +677,10 @@ class Profile(ProfileBase, ProfileRunnerBase):
     All times are "internal time", ie they do not count time spent inside
     called (profilable, so python) functions.
     """
+    __slots__ = (
+        '_global_trace',
+        '_local_trace',
+    )
     stack = LocalDescriptor(_initStack)
     enabled_start = LocalDescriptor(float)
     discount_stack = LocalDescriptor(partial(deque, [0]))
@@ -809,6 +820,7 @@ class ThreadProfile(Profile):
     trace event (typically a "line" event) before they can notice the
     disabling.
     """
+    __slots__ = ('_local_trace_backup', )
     def __init__(self, **kw):
         super(ThreadProfile, self).__init__(**kw)
         self._local_trace_backup = self._local_trace
@@ -882,6 +894,11 @@ class StatisticThread(threading.Thread, ProfileRunnerBase):
         # do stuff
       profiler.print_stats()
     """
+    __slots__ = (
+        '_test',
+        '_start_time',
+        'clean_exit',
+    )
     _test = None
     _start_time = None
     clean_exit = False
