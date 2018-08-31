@@ -113,8 +113,7 @@ else:
 def _getFuncOrFile(func, module):
     if func == '<module>' or func is None:
         return module
-    else:
-        return func
+    return func
 
 def _isCallgrindName(filepath):
     return os.path.basename(filepath).startswith('cachegrind.out.')
@@ -324,7 +323,8 @@ class ProfileBase(object):
             self.global_dict[(id(f_globals), frame.f_code.co_filename)] = file_timing
             return file_timing
 
-    def _getFilename(self, frame):
+    @staticmethod
+    def _getFilename(frame):
         """
         Overload in subclasses to customise filename generation.
         """
@@ -475,10 +475,10 @@ class ProfileBase(object):
                 )
                 for (
                     caller_func, caller_firstlineno,
-                    hits, duration,
+                    call_hits, call_duration,
                     callee_file, callee_line, callee_func,
                 ) in sorted(call_list, key=lambda x: x[2:4]):
-                    ticks = int(duration * 1000000)
+                    call_ticks = int(call_duration * 1000000)
                     func_call_list = func_dict[
                         (caller_func, caller_firstlineno)
                     ][lineno][1]
@@ -486,8 +486,8 @@ class ProfileBase(object):
                     if callee_file != current_file:
                         append(u'cfl=%s' % convertPath(callee_file))
                     append(u'cfn=%s' % _getFuncOrFile(callee_func, callee_file))
-                    append(u'calls=%i %i' % (hits, callee_line))
-                    append(u'%i %i %i %i' % (lineno, hits, ticks, ticks // hits))
+                    append(u'calls=%i %i' % (call_hits, callee_line))
+                    append(u'%i %i %i %i' % (lineno, call_hits, call_ticks, call_ticks // call_hits))
             for (func, firstlineno), line_dict in func_dict.iteritems():
                 print(u'fn=%s' % _getFuncOrFile(func, current_file), file=out)
                 for lineno, (func_hit_list, func_call_list) in sorted(line_dict.iteritems()):
@@ -549,13 +549,16 @@ class ProfileBase(object):
                     u'percent': percent(duration, total_time),
                     u'line': line.rstrip(),
                 }, file=out)
-                for _, _, hits, duration, callee_file, callee_line, \
-                        callee_name in call_list_by_line.get(lineno, ()):
+                for (
+                    _, _,
+                    call_hits, call_duration,
+                    callee_file, callee_line, callee_name,
+                ) in call_list_by_line.get(lineno, ()):
                     print(_ANNOTATE_CALL_FORMAT % {
-                        u'hits': hits,
-                        u'time': duration,
-                        u'time_per_hit': duration / hits,
-                        u'percent': percent(duration, total_time),
+                        u'hits': call_hits,
+                        u'time': call_duration,
+                        u'time_per_hit': call_duration / call_hits,
+                        u'percent': percent(call_duration, total_time),
                         u'callee_file': callee_file,
                         u'callee_line': callee_line,
                         u'callee_name': callee_name,
@@ -720,7 +723,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         del self.stack
         del self.discount_stack
 
-    def disable(self, threads=True):
+    def disable(self):
         """
         Disable profiling.
         """
@@ -774,7 +777,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
             except IndexError:
                 warn('Profiling stack underflow, disabling.')
                 self.disable()
-                return
+                return None
             call_time, old_line, old_time = stack_entry
             try:
                 duration = event_time - old_time
@@ -808,8 +811,8 @@ class Profile(ProfileBase, ProfileRunnerBase):
     def run(self, cmd):
         """Similar to profile.Profile.run ."""
         import __main__
-        dict = __main__.__dict__
-        return self.runctx(cmd, dict, dict)
+        dikt = __main__.__dict__
+        return self.runctx(cmd, dikt, dikt)
 
 class ThreadProfile(Profile):
     """
@@ -1230,8 +1233,7 @@ def pprofile(line, cell=None):
     if cell is None:
         # TODO: detect and use arguments (statistical profiling, ...) ?
         return run(line)
-    else:
-        return _main(['%%pprofile', '-m', '-'] + shlex.split(line), StringIO(cell))
+    return _main(['%%pprofile', '-m', '-'] + shlex.split(line), StringIO(cell))
 try:
     register_line_cell_magic(pprofile)
 except Exception:
