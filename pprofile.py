@@ -420,6 +420,7 @@ class ProfileBase(object):
             profiling result, so kcachegrind does not look in system-wide
             files which may not match with profiled code.
         """
+        print(u'# callgrind format', file=out)
         print(u'version: 1', file=out)
         print(u'creator: pprofile', file=out)
         print(u'event: usphit :us/hit', file=out)
@@ -438,37 +439,56 @@ class ProfileBase(object):
             convertPath = lambda x, cascade=convertPath: cascade(
                 '/'.join(x.split(os.path.sep))
             )
-        for name in self._getFileNameList(filename, may_sort=False):
-            printable_name = convertPath(name)
-            print(u'fl=%s' % printable_name, file=out)
-            funcname = False
-            call_list_by_line = file_dict[name].getCallListByLine()
+        for current_file in self._getFileNameList(filename, may_sort=False):
+            call_list_by_line = file_dict[current_file].getCallListByLine()
+            print(u'fl=%s' % convertPath(current_file), file=out)
+            # When a local callable is created an immediately executed, this
+            # loop would start a new "fn=" section but would not end it before
+            # emitting "cfn=" lines, making the callee appear as not being
+            # called by interrupted "fn=" section.
+            # So dispatch all functions in a first pass, and build
+            # uninterrupted sections in a second pass.
+            # Note: cost line is a list just to be mutable. A single item is
+            # expected.
+            func_dict = defaultdict(lambda: defaultdict(lambda: ([], [])))
             for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
-                    name, call_list_by_line):
+                    current_file, call_list_by_line):
                 call_list = call_list_by_line.get(lineno, ())
                 if not hits and not call_list:
                     continue
                 if func is None:
                     func, firstlineno = call_list[0][:2]
-                if funcname != func:
-                    funcname = func
-                    print(u'fn=%s' % _getFuncOrFile(func,
-                        printable_name), file=out)
                 ticks = int(duration * 1000000)
                 if hits == 0:
                     ticksperhit = 0
                 else:
                     ticksperhit = ticks // hits
-                print(u'%i %i %i %i' % (lineno, hits, ticks, ticksperhit), file=out)
-                for _, _, hits, duration, callee_file, callee_line, \
-                        callee_name in sorted(call_list, key=lambda x: x[2:4]):
-                    callee_file = convertPath(callee_file)
-                    print(u'cfl=%s' % callee_file, file=out)
-                    print(u'cfn=%s' % _getFuncOrFile(callee_name,
-                        callee_file), file=out)
-                    print(u'calls=%i %i' % (hits, callee_line), file=out)
+                func_dict[(func, firstlineno)][lineno][0].append(
+                    u'%i %i %i %i' % (lineno, hits, ticks, ticksperhit),
+                )
+                for (
+                    caller_func, caller_firstlineno,
+                    hits, duration,
+                    callee_file, callee_line, callee_func,
+                ) in sorted(call_list, key=lambda x: x[2:4]):
                     ticks = int(duration * 1000000)
-                    print(u'%i %i %i %i' % (lineno, hits, ticks, ticks // hits), file=out)
+                    func_call_list = func_dict[
+                        (caller_func, caller_firstlineno)
+                    ][lineno][1]
+                    append = func_call_list.append
+                    if callee_file != current_file:
+                        append(u'cfl=%s' % convertPath(callee_file))
+                    append(u'cfn=%s' % _getFuncOrFile(callee_func, callee_file))
+                    append(u'calls=%i %i' % (hits, callee_line))
+                    append(u'%i %i %i %i' % (lineno, hits, ticks, ticks // hits))
+            for (func, firstlineno), line_dict in func_dict.iteritems():
+                print(u'fn=%s' % _getFuncOrFile(func, current_file), file=out)
+                for lineno, (func_hit_list, func_call_list) in sorted(line_dict.iteritems()):
+                    if func_hit_list:
+                        line, = func_hit_list
+                        print(line, file=out)
+                    for line in func_call_list:
+                        print(line, file=out)
 
     def annotate(self, out, filename=None, commandline=None, relative_path=False):
         """
