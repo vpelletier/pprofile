@@ -888,11 +888,9 @@ StatisticalProfile = StatisticProfile
 class StatisticThread(threading.Thread, ProfileRunnerBase):
     """
     Usage in a nutshell:
-      profiler = StatisticProfile()
-      pt = StatisticThread(profiler)
-      with pt:
+      with StatisticThread() as profiler_thread:
         # do stuff
-      profiler.print_stats()
+      profiler_thread.profiler.print_stats()
     """
     __slots__ = (
         '_test',
@@ -903,20 +901,24 @@ class StatisticThread(threading.Thread, ProfileRunnerBase):
     _start_time = None
     clean_exit = False
 
-    def __init__(self, profiler, period=.001, single=True, group=None, name=None):
+    def __init__(self, profiler=None, period=.001, single=True, group=None, name=None):
         """
+        profiler (None or StatisticProfile instance)
+          Available on instances as the "profiler" read-only property.
+          If None, a new profiler instance will be created.
         period (float)
           How many seconds to wait between consecutive samples.
           The smaller, the more profiling overhead, but the faster results
           become meaningful.
           The larger, the less profiling overhead, but requires long profiling
           session to get meaningful results.
-          Available on instances as the "profiler" read-only property.
         single (bool)
           Profile only the thread which created this instance.
         group, name
           See Python's threading.Thread API.
         """
+        if profiler is None:
+            profiler = StatisticProfile()
         if single:
             self._test = lambda x, ident=threading.current_thread().ident: ident == x
         super(StatisticThread, self).__init__(
