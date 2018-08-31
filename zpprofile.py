@@ -160,7 +160,7 @@ class ZopeMixIn(object):
         for name, lines in self.iterSource():
             lines = ''.join(lines)
             if lines:
-                pyfile = MIMEText(lines, 'x-python')
+                pyfile = MIMEText(lines, 'x-python', 'utf-8')
                 pyfile.add_header(
                     'Content-Disposition',
                     'attachment',
