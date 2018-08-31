@@ -68,6 +68,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.encoders import encode_quopri
+import functools
 from io import StringIO
 from importlib import import_module
 import itertools
@@ -93,6 +94,23 @@ ZRPythonExpr__call__func_code = getFuncCodeOrNone('Products.PageTemplates.ZRPyth
 DT_UtilEvaleval_func_code = getFuncCodeOrNone('DocumentTemplate.DT_Util', ('Eval', 'eval'))
 SharedDCScriptsBindings_bindAndExec_func_code = getFuncCodeOrNone('Shared.DC.Scripts.Bindings', ('Bindings', '_bindAndExec'))
 
+# OFS.Traversable.Traversable.unrestrictedTraverse overwites its path argument,
+# preventing post-invocation introspection. As it does not mutate the argument,
+# it is still possible to inspect using such controlled intermediate function.
+def unrestrictedTraverse_spy(self, path, *args, **kw):
+    return orig_unrestrictedTraverse(self, path, *args, **kw)
+unrestrictedTraverse_spy_func_code = unrestrictedTraverse_spy.func_code
+try:
+    import OFS.Traversable
+    orig_unrestrictedTraverse = OFS.Traversable.Traversable.unrestrictedTraverse
+except (ImportError, AttributeError):
+    pass
+else:
+    functools.update_wrapper(unrestrictedTraverse_spy, orig_unrestrictedTraverse)
+    OFS.Traversable.Traversable.unrestrictedTraverse = unrestrictedTraverse_spy
+
+OFSTraversableUnrestrictedTraverse_func_code = getFuncCodeOrNone('OFS.Traversable', ('Traversable', 'unrestrictedTraverse'))
+
 _ALLSEP = os.sep + (os.altsep or '')
 PYTHON_EXPR_FUNC_CODE_SET = (ZRPythonExpr__call__func_code, PythonExpr__call__func_code)
 
@@ -112,9 +130,32 @@ class ZopeFileTiming(pprofile.FileTiming):
                 self.profiler.zodb_dict[
                     f_locals['self'].db().database_name
                 ][oid].append(duration)
+        elif f_code is unrestrictedTraverse_spy_func_code:
+            f_locals = frame.f_locals
+            self.profiler.traverse_dict[
+                (repr(f_locals['self']), repr(f_locals['path']))
+            ].append(duration)
         super(ZopeFileTiming, self).call(
             code, line, callee_file_timing, callee, duration, frame,
         )
+
+def tabulate(title_list, row_list):
+    # de-lazify
+    row_list = list(row_list)
+    column_count = len(title_list)
+    max_width_list = [len(x) for x in title_list]
+    for row in row_list:
+        assert len(row) == column_count, repr(row)
+        for index, value in enumerate(row):
+            max_width_list[index] = max(max_width_list[index], len(unicode(value)))
+    format_string = u''.join(u'| %%-%is ' % x for x in max_width_list) + u'|\n'
+    out = StringIO()
+    write = out.write
+    write(format_string % tuple(title_list))
+    write(u''.join(u'+' + (u'-' * (x + 2)) for x in max_width_list) + u'+\n')
+    for row in row_list:
+        write(format_string % tuple(row))
+    return out.getvalue()
 
 def disassemble(co, lasti=-1):
     """Disassemble a code object."""
@@ -181,6 +222,7 @@ class ZopeMixIn(object):
         'sql_dict',
         'zodb_dict',
         'fake_source_dict',
+        'traverse_dict',
     )
     __allow_access_to_unprotected_subobjects__ = 1
     FileTiming = ZopeFileTiming
@@ -190,6 +232,7 @@ class ZopeMixIn(object):
         self.sql_dict = defaultdict(list)
         self.zodb_dict = defaultdict(lambda: defaultdict(list))
         self.fake_source_dict = {}
+        self.traverse_dict = defaultdict(list)
 
     def _getline(self, filename, lineno, global_dict):
         line_list = self.fake_source_dict.get(filename)
@@ -353,6 +396,29 @@ class ZopeMixIn(object):
                 filename='ZODB_setstate.txt',
             )
             result.attach(zodbfile)
+
+        if self.traverse_dict:
+            traverse_file = MIMEText(
+                tabulate(
+                    ('self', 'path', 'hit', 'total duration'),
+                    sorted(
+                        (
+                            (context, path, len(duration_list), sum(duration_list))
+                            for (context, path), duration_list in self.traverse_dict.iteritems()
+                        ),
+                        key=lambda x: x[3],
+                        reverse=True,
+                    ),
+                ),
+                'plain',
+                'utf-8',
+            )
+            traverse_file.add_header(
+                'Content-Disposition',
+                'attachment',
+                filename='unrestrictedTraverse_pathlist.txt',
+            )
+            result.attach(traverse_file)
 
         return result.as_string(), result['content-type']
 
