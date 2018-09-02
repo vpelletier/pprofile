@@ -30,3 +30,4 @@ script:
   - pprofile demo/recurse4.py
   - pprofile demo/twocalls.py
   - pprofile demo/twocalls2.py
+  - demo/fibo.py
