@@ -463,8 +463,8 @@ class ProfileBase(object):
         print(u'# callgrind format', file=out)
         print(u'version: 1', file=out)
         print(u'creator: pprofile', file=out)
-        print(u'event: usphit :us/hit', file=out)
-        print(u'events: hits us usphit', file=out)
+        print(u'event: usphit :microseconds/hit', file=out)
+        print(u'events: hits microseconds usphit', file=out)
         if commandline is not None:
             print(u'cmd:', commandline, file=out)
         file_dict = self.file_dict
