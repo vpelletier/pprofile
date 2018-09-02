@@ -719,15 +719,18 @@ class Profile(ProfileBase, ProfileRunnerBase):
         'stack',
         'enabled_start',
     )
-    enabled_start = None
 
     def __init__(self, verbose=False):
         super(Profile, self).__init__()
         if verbose:
             self._global_trace = _verboseProfileDecorator(self)(
-                self._global_trace)
+                self._real_global_trace)
             self._local_trace = _verboseProfileDecorator(self)(
-                self._local_trace)
+                self._real_local_trace)
+        else:
+            self._global_trace = self._real_global_trace
+            self._local_trace = self._real_local_trace
+        self.enabled_start = None
 
     def _enable(self):
         """
@@ -757,7 +760,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         trace.
         """
         self.total_time += time() - self.enabled_start
-        del self.enabled_start
+        self.enabled_start = None
         del self.stack
 
     def disable(self):
@@ -796,7 +799,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
             lineno - f_code.co_firstlineno,
         ), file=sys.stderr)
 
-    def _global_trace(self, frame, event, arg):
+    def _real_global_trace(self, frame, event, arg):
         local_trace = self._local_trace
         if local_trace is not None:
             event_time = time()
@@ -815,7 +818,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
             stack.append(callee_entry)
         return local_trace
 
-    def _local_trace(self, frame, event, arg):
+    def _real_local_trace(self, frame, event, arg):
         if event == 'line' or event == 'return':
             event_time = time()
             stack, callee_dict = self.stack
@@ -953,9 +956,6 @@ class StatisticThread(threading.Thread, ProfileRunnerBase):
         '_start_time',
         'clean_exit',
     )
-    _test = None
-    _start_time = None
-    clean_exit = False
 
     def __init__(self, profiler=None, period=.001, single=True, group=None, name=None):
         """
@@ -977,6 +977,8 @@ class StatisticThread(threading.Thread, ProfileRunnerBase):
             profiler = StatisticProfile()
         if single:
             self._test = lambda x, ident=threading.current_thread().ident: ident == x
+        else:
+            self._test = None
         super(StatisticThread, self).__init__(
             group=group,
             name=name,
@@ -986,14 +988,16 @@ class StatisticThread(threading.Thread, ProfileRunnerBase):
         self._profiler = profiler
         profiler.total_time = 0
         self.daemon = True
+        self.clean_exit = False
 
     @property
     def profiler(self):
         return self._profiler
 
     def start(self):
-        self._start_time = time()
+        self.clean_exit = False
         self._can_run = True
+        self._start_time = time()
         super(StatisticThread, self).start()
 
     def stop(self):
@@ -1025,7 +1029,7 @@ class StatisticThread(threading.Thread, ProfileRunnerBase):
         current_frames = sys._current_frames
         test = self._test
         if test is None:
-            test = lambda x, ident=self.ident: ident != x
+            test = lambda x, ident=threading.current_thread().ident: ident != x
         sample = self._profiler.sample
         stop_event = self._stop_event
         wait = partial(stop_event.wait, self._period)
