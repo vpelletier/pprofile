@@ -308,7 +308,7 @@ def _initStack():
     # line_time: time at which latest line started being executed
     # line_duration: total time spent in current line up to last resume
     now = time()
-    return deque([[now, 0, None, now, 0]])
+    return (deque([[now, 0, None, now, 0]]), defaultdict(deque))
 
 def _verboseProfileDecorator(self):
     def decorator(func):
@@ -716,10 +716,10 @@ class Profile(ProfileBase, ProfileRunnerBase):
     __slots__ = (
         '_global_trace',
         '_local_trace',
+        'stack',
+        'enabled_start',
     )
-    stack = LocalDescriptor(_initStack)
-    enabled_start = LocalDescriptor(float)
-    callee_dict = LocalDescriptor(lambda: defaultdict(deque))
+    enabled_start = None
 
     def __init__(self, verbose=False):
         super(Profile, self).__init__()
@@ -734,6 +734,11 @@ class Profile(ProfileBase, ProfileRunnerBase):
         Overload this method when subclassing. Called before actually
         enabling trace.
         """
+        try:
+            self.stack
+        except AttributeError:
+            # In case subclass declared stack as descriptor.
+            self.stack = _initStack()
         self.enabled_start = time()
 
     def enable(self):
@@ -754,7 +759,6 @@ class Profile(ProfileBase, ProfileRunnerBase):
         self.total_time += time() - self.enabled_start
         del self.enabled_start
         del self.stack
-        del self.callee_dict
 
     def disable(self):
         """
@@ -797,7 +801,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         if local_trace is not None:
             event_time = time()
             callee_entry = [event_time, 0, frame.f_lineno, event_time, 0]
-            stack = self.stack
+            stack, callee_dict = self.stack
             try:
                 caller_entry = stack[-1]
             except IndexError:
@@ -807,14 +811,14 @@ class Profile(ProfileBase, ProfileRunnerBase):
                 frame_time, frame_discount, lineno, line_time, line_duration = caller_entry
                 caller_entry[4] = event_time - line_time + line_duration
                 caller_frame = frame.f_back
-                self.callee_dict[frame.f_code].append(callee_entry)
+                callee_dict[frame.f_code].append(callee_entry)
             stack.append(callee_entry)
         return local_trace
 
     def _local_trace(self, frame, event, arg):
         if event == 'line' or event == 'return':
             event_time = time()
-            stack = self.stack
+            stack, callee_dict = self.stack
             try:
                 stack_entry = stack[-1]
             except IndexError:
@@ -838,7 +842,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
                 caller_code = caller_frame.f_code
                 caller_lineno = caller_frame.f_lineno
                 callee_code = frame.f_code
-                callee_entry_list = self.callee_dict[callee_code]
+                callee_entry_list = callee_dict[callee_code]
                 callee_entry_list.pop()
                 call_duration = event_time - frame_time
                 if callee_entry_list:
@@ -870,6 +874,10 @@ class ThreadProfile(Profile):
     disabling.
     """
     __slots__ = ('_local_trace_backup', )
+
+    stack = LocalDescriptor(_initStack)
+    enabled_start = LocalDescriptor(float)
+
     def __init__(self, **kw):
         super(ThreadProfile, self).__init__(**kw)
         self._local_trace_backup = self._local_trace
