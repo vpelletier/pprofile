@@ -54,7 +54,7 @@ from functools import partial, wraps
 from time import time
 from warnings import warn
 import argparse
-from io import StringIO
+import io
 import inspect
 import linecache
 import os
@@ -627,7 +627,7 @@ class ProfileBase(object):
             with open(filename, 'w') as out:
                 self.callgrind(out)
         else:
-            with open(filename, 'w', errors='replace') as out:
+            with io.open(filename, 'w', errors='replace') as out:
                 self.annotate(out)
 
     def print_stats(self):
@@ -1235,7 +1235,7 @@ def _main(argv, stdin=None):
             close = lambda: None
             out = EncodeOrReplaceWriter(out)
         else:
-            out = open(options.out, 'w', errors='replace')
+            out = io.open(options.out, 'w', errors='replace')
             close = out.close
         if options.exclude:
             exclusion_search_list = [
@@ -1288,7 +1288,10 @@ def pprofile(line, cell=None):
     if cell is None:
         # TODO: detect and use arguments (statistical profiling, ...) ?
         return run(line)
-    return _main(['%%pprofile', '-m', '-'] + shlex.split(line), StringIO(cell))
+    return _main(
+        ['%%pprofile', '-m', '-'] + shlex.split(line),
+        io.StringIO(cell),
+    )
 try:
     register_line_cell_magic(pprofile)
 except Exception:
