@@ -136,10 +136,12 @@ class EncodeOrReplaceWriter(object):
                 errors='replace',
             ).decode(self._encoding))
 
-def _getFuncOrFile(func, module):
+def _getFuncOrFile(func, module, firstlineno):
     if func == '<module>':
         return module
-    return func
+    # Without involving firstlineno, cachegrind out has no way to distinguish
+    # homonym functions within the same file.
+    return '%s:%i' % (func, firstlineno)
 
 def _isCallgrindName(filepath):
     return os.path.basename(filepath).startswith('cachegrind.out.')
@@ -515,11 +517,11 @@ class ProfileBase(object):
                     append = func_call_list.append
                     if callee_file != current_file:
                         append(u'cfl=%s' % convertPath(callee_file))
-                    append(u'cfn=%s' % _getFuncOrFile(callee_func, callee_file))
+                    append(u'cfn=%s' % _getFuncOrFile(callee_func, callee_file, callee_line))
                     append(u'calls=%i %i' % (call_hits, callee_line))
                     append(u'%i %i %i %i' % (lineno, call_hits, call_ticks, call_ticks // call_hits))
             for (func, firstlineno), line_dict in func_dict.iteritems():
-                print(u'fn=%s' % _getFuncOrFile(func, current_file), file=out)
+                print(u'fn=%s' % _getFuncOrFile(func, current_file, firstlineno), file=out)
                 for lineno, (func_hit_list, func_call_list) in sorted(line_dict.iteritems()):
                     if func_hit_list:
                         line, = func_hit_list
