@@ -341,7 +341,7 @@ class ProfileBase(object):
 
     def _getFileTiming(self, frame):
         try:
-            return self.global_dict[(id(frame.f_globals), frame.f_code.co_filename)]
+            return self.global_dict[frame.f_code]
         except KeyError:
             f_globals = frame.f_globals
             name = self._getFilename(frame)
@@ -353,7 +353,7 @@ class ProfileBase(object):
                     f_globals,
                     self,
                 )
-            self.global_dict[(id(f_globals), frame.f_code.co_filename)] = file_timing
+            self.global_dict[frame.f_code] = file_timing
             return file_timing
 
     @staticmethod
