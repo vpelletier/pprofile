@@ -876,7 +876,6 @@ class ThreadProfile(Profile):
     __slots__ = ('_local_trace_backup', )
 
     stack = LocalDescriptor(_initStack)
-    enabled_start = LocalDescriptor(float)
 
     def __init__(self, **kw):
         super(ThreadProfile, self).__init__(**kw)
