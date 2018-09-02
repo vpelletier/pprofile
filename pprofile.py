@@ -137,7 +137,7 @@ class EncodeOrReplaceWriter(object):
             ).decode(self._encoding))
 
 def _getFuncOrFile(func, module):
-    if func == '<module>' or func is None:
+    if func == '<module>':
         return module
     return func
 
@@ -496,8 +496,6 @@ class ProfileBase(object):
                 call_list = call_list_by_line.get(lineno, ())
                 if not hits and not call_list:
                     continue
-                if func is None:
-                    func, firstlineno = call_list[0][:2]
                 ticks = int(duration * 1000000)
                 if hits == 0:
                     ticksperhit = 0
@@ -880,6 +878,7 @@ class ThreadProfile(Profile):
 
     def __init__(self, **kw):
         super(ThreadProfile, self).__init__(**kw)
+        # XXX: file_dict, global_dict are not thread safe ! (no problem for total_time ?)
         self._local_trace_backup = self._local_trace
 
     def _enable(self):
