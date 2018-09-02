@@ -204,11 +204,10 @@ class _FileTiming(object):
         frame (frame)
           calle's entire frame as of its return
         """
-        key = (line, callee_file_timing.filename, callee)
         try:
-            entry = self.call_dict[key]
+            entry = self.call_dict[(code, line, callee)]
         except KeyError:
-            self.call_dict[key] = [code, 1, duration]
+            self.call_dict[(code, line, callee)] = [callee_file_timing, 1, duration]
         else:
             entry[1] += 1
             entry[2] += duration
@@ -224,12 +223,12 @@ class _FileTiming(object):
 
     def getCallListByLine(self):
         result = defaultdict(list)
-        for (line, name, callee), (code, hit, duration) in \
+        for (code, line, callee), (callee_file_timing, hit, duration) in \
                 self.call_dict.iteritems():
             result[line].append((
                 code.co_name, code.co_firstlineno,
                 hit, duration,
-                name, callee.co_firstlineno, callee.co_name,
+                callee_file_timing.filename, callee.co_firstlineno, callee.co_name,
             ))
         return result
 
