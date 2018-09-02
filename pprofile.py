@@ -74,41 +74,67 @@ __all__ = (
     'StatisticProfile', 'StatisticThread', 'run', 'runctx', 'runfile',
     'runpath',
 )
+class BaseLineIterator(object):
+    def __init__(self, getline, filename, global_dict):
+        self._getline = getline
+        self._filename = filename
+        self._global_dict = global_dict
+        self._lineno = 1
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        lineno = self._lineno
+        self._lineno += 1
+        return lineno, self._getline(self._filename, lineno, self._global_dict)
 
 if sys.version_info < (3, ):
-    # Python 2.x linecache returns non-decoded strings, which cause errors when
-    # mixing source code of different encodings and writing to a fixed-encoding
-    # output. So instead of writing a lot of code to properly handle this, just
-    # emit text the Python 2 way: don't specify encoding.
-    def _open(name, mode, errors):
-        return open(name, mode)
+    # Find coding specification (see PEP-0263)
+    _matchCoding = re.compile(
+        r'^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)',
+    ).match
+    class LineIterator(BaseLineIterator):
+        def __init__(self, *args, **kw):
+            super(LineIterator, self).__init__(*args, **kw)
+            # Identify encoding.
+            # PEP-0263: "the first or second line must match [_matchCoding]"
+            for lineno in (1, 2):
+                match = _matchCoding(self._getline(self._filename, lineno, self._global_dict))
+                if match is not None:
+                    self._encoding = match.group(1)
+                    break
+            else:
+                self._encoding = 'ascii'
 
-    def _reopen(stream, encoding=None, errors='strict'):
-        return stream
+        def next(self):
+            lineno, line = super(LineIterator, self).next()
+            return lineno, line.decode(self._encoding)
 else:
-    import codecs
-    _open = open
+    # getline returns unicode objects, nothing to do
+    LineIterator = BaseLineIterator
 
-    def _reopen(stream, encoding=None, errors='strict'):
-        """
-        Reopen given stream, optionally changing the encoding and error handler.
-        """
-        if encoding is None:
-            encoding = stream.encoding
-        # XXX: Python3 < 3.2 and ipykernel.iostream.OutStream at least up to
-        # 4.5.0 do not have stream.buffer.
-        # I do not see a way to change errors without also potentially changing
-        # the encoding, and there does not seem to be a way to change encoding
-        # without having to access the binary stream.
+LINESEP = os.linesep
+if isinstance(LINESEP, bytes):
+    LINESEP = LINESEP.decode()
+
+class EncodeOrReplaceWriter(object):
+    """
+    Write-only file-ish object which replaces unsupported chars when
+    underlying file rejects them.
+    """
+    def __init__(self, out):
+        self._encoding = out.encoding
+        self._write = out.write
+
+    def write(self, data):
         try:
-            buf = stream.buffer
-        except AttributeError:
-            warn(
-                'Cannot access "%r.buffer", invalid entities from source '
-                'files will cause errors when annotating.' % (stream, )
-            )
-            return stream
-        return codecs.getwriter(encoding)(buf, errors=errors)
+            self._write(data)
+        except UnicodeEncodeError:
+            self._write(data.encode(
+                self._encoding,
+                errors='replace',
+            ).decode(self._encoding))
 
 def _getFuncOrFile(func, module):
     if func == '<module>' or func is None:
@@ -375,16 +401,16 @@ class ProfileBase(object):
         return filename
 
     def _iterFile(self, name, call_list_by_line):
-        lineno = 0
         if call_list_by_line:
             last_call_line = max(call_list_by_line)
         else:
             last_call_line = 0
         file_timing = self.file_dict[name]
-        while True:
-            lineno += 1
-            line = self._getline(file_timing.filename, lineno,
-                file_timing.global_dict)
+        for lineno, line in LineIterator(
+            self._getline,
+            file_timing.filename,
+            file_timing.global_dict,
+        ):
             func, firstlineno, hits, duration = file_timing.getHitStatsFor(
                 lineno)
             if func is None:
@@ -401,7 +427,7 @@ class ProfileBase(object):
                 # Line exists in stats, but not in file. Happens on 1st
                 # line of empty files (ex: __init__.py). Fake the presence
                 # of an empty line.
-                line = os.linesep
+                line = LINESEP
             yield lineno, func, firstlineno, hits, duration, line
 
     def callgrind(self, out, filename=None, commandline=None, relative_path=False):
@@ -596,7 +622,7 @@ class ProfileBase(object):
             with open(filename, 'w') as out:
                 self.callgrind(out)
         else:
-            with _open(filename, 'w', errors='replace') as out:
+            with open(filename, 'w', errors='replace') as out:
                 self.annotate(out)
 
     def print_stats(self):
@@ -604,7 +630,7 @@ class ProfileBase(object):
         Similar to profile.Profile.print_stats .
         Returns None.
         """
-        self.annotate(_reopen(sys.stdout, errors='replace'))
+        self.annotate(EncodeOrReplaceWriter(sys.stdout))
 
 class ProfileRunnerBase(object):
     def __call__(self):
@@ -1177,10 +1203,11 @@ def _main(argv, stdin=None):
         getattr(runner, runner_method_id)(**runner_method_kw)
     finally:
         if options.out == '-':
-            out = _reopen(sys.stdout, errors='replace')
+            out = sys.stdout
             close = lambda: None
+            out = EncodeOrReplaceWriter(out)
         else:
-            out = _open(options.out, 'w', errors='replace')
+            out = open(options.out, 'w', errors='replace')
             close = out.close
         if options.exclude:
             exclusion_search_list = [
