@@ -1252,10 +1252,16 @@ def _main(argv, stdin=None):
             }
         else:
             filename_set = None
+        commandline = repr(args)
         getattr(prof, format_dict[options.format])(
             out,
             filename=filename_set,
-            commandline=repr(args),
+            # python2 repr returns bytes, python3 repr returns unicode
+            commandline=getattr(
+                commandline,
+                'decode',
+                lambda _: commandline,
+            )('ascii'),
             relative_path=relative_path,
         )
         close()
