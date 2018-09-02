@@ -39,7 +39,7 @@ Statistic profiling:
 >>>     # Code to profile
 >>> prof.print_stats()
 """
-from __future__ import print_function
+from __future__ import print_function, division
 from collections import defaultdict, deque
 from functools import partial, wraps
 # Note: use time, not clock.
@@ -525,7 +525,7 @@ class ProfileBase(object):
         def percent(value, scale):
             if scale == 0:
                 return 0
-            return value * 100 / float(scale)
+            return value * 100 / scale
         for name in self._getFileNameList(filename):
             file_timing = file_dict[name]
             file_total_time = file_timing.getTotalTime()
