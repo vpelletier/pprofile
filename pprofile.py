@@ -1231,9 +1231,8 @@ def _main(argv, stdin=None):
         getattr(runner, runner_method_id)(**runner_method_kw)
     finally:
         if options.out == '-':
-            out = sys.stdout
+            out = EncodeOrReplaceWriter(sys.stdout)
             close = lambda: None
-            out = EncodeOrReplaceWriter(out)
         else:
             out = io.open(options.out, 'w', errors='replace')
             close = out.close
