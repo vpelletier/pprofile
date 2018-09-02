@@ -30,4 +30,4 @@ for caption, value in (
     ('threaded', threaded),
     ('statistic', statistic),
 ):
-    print('%s speed: %i%%' % (caption, value * 100 / raw))
+    print('%s speed: %.2f%%' % (caption, value * 100 / raw))
