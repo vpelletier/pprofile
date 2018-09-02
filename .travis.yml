@@ -24,3 +24,9 @@ script:
   - LC_CTYPE=ISO-8859-15 pprofile --include demo demo/encoding.py
   - pprofile demo/empty.py -search
   - pprofile -- demo/empty.py -search
+  - pprofile demo/recurse.py
+  - pprofile demo/recurse2.py
+  - pprofile demo/recurse3.py
+  - pprofile demo/recurse4.py
+  - pprofile demo/twocalls.py
+  - pprofile demo/twocalls2.py

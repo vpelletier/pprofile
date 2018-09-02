@@ -301,7 +301,14 @@ _ANNOTATE_CALL_FORMAT = \
     u'# %(callee_file)s:%(callee_line)s %(callee_name)s'
 
 def _initStack():
-    return deque([[time(), None, None]])
+    # frame_time: when current frame execution started/resumed last
+    # frame_discount: time discounted from current frame, because it appeared
+    #   lower in the call stack from the same callsite
+    # lineno: latest line which execution started
+    # line_time: time at which latest line started being executed
+    # line_duration: total time spent in current line up to last resume
+    now = time()
+    return deque([[now, 0, None, now, 0]])
 
 def _verboseProfileDecorator(self):
     def decorator(func):
@@ -712,7 +719,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
     )
     stack = LocalDescriptor(_initStack)
     enabled_start = LocalDescriptor(float)
-    discount_stack = LocalDescriptor(partial(deque, [0]))
+    callee_dict = LocalDescriptor(lambda: defaultdict(deque))
 
     def __init__(self, verbose=False):
         super(Profile, self).__init__()
@@ -747,7 +754,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         self.total_time += time() - self.enabled_start
         del self.enabled_start
         del self.stack
-        del self.discount_stack
+        del self.callee_dict
 
     def disable(self):
         """
@@ -775,7 +782,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
     def _traceEvent(self, frame, event):
         f_code = frame.f_code
         lineno = frame.f_lineno
-        print('%10.6f%s%s %s:%s %s+%s %s' % (
+        print('%10.6f%s%s %s:%s %s+%s' % (
             time() - self.enabled_start,
             ' ' * len(self.stack),
             event,
@@ -783,15 +790,25 @@ class Profile(ProfileBase, ProfileRunnerBase):
             lineno,
             f_code.co_name,
             lineno - f_code.co_firstlineno,
-            self.discount_stack[-1],
         ), file=sys.stderr)
 
     def _global_trace(self, frame, event, arg):
         local_trace = self._local_trace
         if local_trace is not None:
-            now = time()
-            self.stack.append([now, frame.f_lineno, now])
-            self.discount_stack.append(0)
+            event_time = time()
+            callee_entry = [event_time, 0, frame.f_lineno, event_time, 0]
+            stack = self.stack
+            try:
+                caller_entry = stack[-1]
+            except IndexError:
+                pass
+            else:
+                # Suspend caller frame
+                frame_time, frame_discount, lineno, line_time, line_duration = caller_entry
+                caller_entry[4] = event_time - line_time + line_duration
+                caller_frame = frame.f_back
+                self.callee_dict[frame.f_code].append(callee_entry)
+            stack.append(callee_entry)
         return local_trace
 
     def _local_trace(self, frame, event, arg):
@@ -804,31 +821,34 @@ class Profile(ProfileBase, ProfileRunnerBase):
                 warn('Profiling stack underflow, disabling.')
                 self.disable()
                 return None
-            call_time, old_line, old_time = stack_entry
-            try:
-                duration = event_time - old_time
-            except TypeError:
-                pass
-            else:
-                discount_time = self.discount_stack[-1]
-                if discount_time:
-                    duration -= discount_time
-                    self.discount_stack[-1] = 0
-                self._getFileTiming(frame).hit(frame.f_code, old_line,
-                    duration)
+            frame_time, frame_discount, lineno, line_time, line_duration = stack_entry
+            self._getFileTiming(frame).hit(frame.f_code, lineno,
+                event_time - line_time + line_duration)
             if event == 'line':
-                stack_entry[1] = frame.f_lineno
-                stack_entry[2] = event_time
+                # Start a new line
+                stack_entry[2] = frame.f_lineno
+                stack_entry[3] = event_time
+                stack_entry[4] = 0
             else:
+                # 'return' event, <frame> is still callee
+                # Resume caller frame
                 stack.pop()
-                self.discount_stack.pop()
-                inclusive_duration = event_time - call_time
-                self.discount_stack[-1] += inclusive_duration
+                stack[-1][3] = event_time
                 caller_frame = frame.f_back
+                caller_code = caller_frame.f_code
+                caller_lineno = caller_frame.f_lineno
+                callee_code = frame.f_code
+                callee_entry_list = self.callee_dict[callee_code]
+                callee_entry_list.pop()
+                call_duration = event_time - frame_time
+                if callee_entry_list:
+                    # Callee is also somewhere up the stack, so discount this
+                    # call duration from it.
+                    callee_entry_list[-1][1] += call_duration
                 self._getFileTiming(caller_frame).call(
-                    caller_frame.f_code, caller_frame.f_lineno,
+                    caller_code, caller_lineno,
                     self._getFileTiming(frame),
-                    frame.f_code, inclusive_duration,
+                    callee_code, call_duration - frame_discount,
                     frame,
                 )
         return self._local_trace
