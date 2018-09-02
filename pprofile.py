@@ -214,13 +214,13 @@ class _FileTiming(object):
             entry[2] += duration
 
     def getHitStatsFor(self, line):
-        code, line, duration = self.line_dict.get(line, (None, 0, 0))
+        code, hits, duration = self.line_dict.get(line, (None, 0, 0))
         if code is None:
             firstlineno = None
         else:
             firstlineno = code.co_firstlineno
             code = code.co_name
-        return code, firstlineno, line, duration
+        return code, firstlineno, hits, duration
 
     def getCallListByLine(self):
         result = defaultdict(list)
