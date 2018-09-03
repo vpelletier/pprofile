@@ -265,7 +265,7 @@ class ZopeMixIn(object):
             except KeyError:
                 return filename
             return self._rememberFile(
-                script.body() + '\n## %s\n' % script.id,
+                script.body().decode('utf-8') + (u'\n## %s\n' % script.id),
                 script.id,
                 '.py',
             )
@@ -282,7 +282,7 @@ class ZopeMixIn(object):
                 )
             if back_code is DT_UtilEvaleval_func_code:
                 return self._rememberFile(
-                    f_back.f_locals['self'].expr,
+                    f_back.f_locals['self'].expr.decode('utf-8'),
                     'DT_Util_Eval',
                     '.py',
                 )
@@ -293,11 +293,19 @@ class ZopeMixIn(object):
                 '%s.%s' % (filename, frame.f_code.co_name),
                 '.py.bytecode',
             )
-        if filename == 'PythonExpr' and back_code in PYTHON_EXPR_FUNC_CODE_SET:
+        if filename == 'PythonExpr':
+            if back_code in PYTHON_EXPR_FUNC_CODE_SET:
+                return self._rememberFile(
+                    f_back.f_locals['self'].text.decode('utf-8'),
+                    'PythonExpr',
+                    '.py',
+                )
             return self._rememberFile(
-                f_back.f_locals['self'].text,
-                'PythonExpr',
-                '.py',
+                u'# Unidentified source for <PythonExpr>\n' + disassemble(
+                    frame.f_code,
+                ),
+                '%s.%s' % (filename, frame.f_code.co_name),
+                '.py.bytecode',
             )
         return filename
 
