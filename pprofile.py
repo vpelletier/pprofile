@@ -58,9 +58,16 @@ import io
 import inspect
 import linecache
 import os
+# not caught by 2to3, likely because pipes.quote is not documented in python 2
+try:
+    from pipes import quote as shlex_quote # Python 2
+except ImportError:
+    from shlex import quote as shlex_quote # Python 3
+import platform
 import re
 import runpy
 import shlex
+from subprocess import list2cmdline as windows_list2cmdline
 import sys
 import threading
 import zipfile
@@ -113,6 +120,12 @@ if sys.version_info < (3, ):
 else:
     # getline returns unicode objects, nothing to do
     LineIterator = BaseLineIterator
+
+if platform.system() == 'Windows':
+    quoteCommandline = windows_list2cmdline
+else:
+    def quoteCommandline(commandline):
+        return ' '.join(shlex_quote(x) for x in commandline)
 
 LINESEP = os.linesep
 if isinstance(LINESEP, bytes):
@@ -1253,7 +1266,7 @@ def _main(argv, stdin=None):
             }
         else:
             filename_set = None
-        commandline = repr(args)
+        commandline = quoteCommandline(args)
         getattr(prof, format_dict[options.format])(
             out,
             filename=filename_set,
