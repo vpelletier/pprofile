@@ -803,7 +803,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         lineno = frame.f_lineno
         print('%10.6f%s%s %s:%s %s+%s' % (
             time() - self.enabled_start,
-            ' ' * len(self.stack),
+            ' ' * len(self.stack[0]),
             event,
             f_code.co_filename,
             lineno,
