@@ -69,6 +69,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.encoders import encode_quopri
 import functools
+import gc
 from io import StringIO
 from importlib import import_module
 import itertools
@@ -233,6 +234,14 @@ class ZopeMixIn(object):
         self.zodb_dict = defaultdict(lambda: defaultdict(list))
         self.fake_source_dict = {}
         self.traverse_dict = defaultdict(list)
+
+    def _enable(self):
+        gc.disable()
+        super(ZopeMixIn, self)._enable()
+
+    def _disable(self):
+        super(ZopeMixIn, self)._disable()
+        gc.enable()
 
     def _getline(self, filename, lineno, global_dict):
         line_list = self.fake_source_dict.get(filename)
