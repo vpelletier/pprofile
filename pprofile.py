@@ -116,6 +116,11 @@ if sys.version_info < (3, ):
 
         def next(self):
             lineno, line = super(LineIterator, self).next()
+            if isinstance(line, unicode):
+                # Custom ProfileBase._getline implementations may return
+                # unicode objects, especially if encoding does not follow
+                # PEP-0263.
+                return lineno, line
             return lineno, line.decode(self._encoding)
 else:
     # getline returns unicode objects, nothing to do
