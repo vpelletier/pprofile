@@ -178,7 +178,7 @@ class _FileTiming(object):
     def __init__(self, filename, global_dict, profiler):
         self.filename = filename
         self.global_dict = global_dict
-        self.line_dict = {}
+        self.line_dict = defaultdict(lambda: defaultdict(lambda: [0, 0]))
         self.call_dict = {}
         # Note: not used in this implementation, may be used by subclasses.
         self.profiler = profiler
@@ -194,13 +194,9 @@ class _FileTiming(object):
         duration (float)
           duration of the line, in seconds
         """
-        try:
-            entry = self.line_dict[line]
-        except KeyError:
-            self.line_dict[line] = [code, 1, duration]
-        else:
-            entry[1] += 1
-            entry[2] += duration
+        entry = self.line_dict[line][code]
+        entry[0] += 1
+        entry[1] += duration
 
     def call(self, code, line, callee_file_timing, callee, duration, frame):
         """
@@ -228,13 +224,13 @@ class _FileTiming(object):
             entry[2] += duration
 
     def getHitStatsFor(self, line):
-        code, hits, duration = self.line_dict.get(line, (None, 0, 0))
-        if code is None:
-            firstlineno = None
-        else:
-            firstlineno = code.co_firstlineno
-            code = code.co_name
-        return code, firstlineno, hits, duration
+        for code, (hits, duration) in self.line_dict.get(line, {None: (0, 0)}).iteritems():
+            if code is None:
+                firstlineno = None
+            else:
+                firstlineno = code.co_firstlineno
+                code = code.co_name
+            yield code, firstlineno, hits, duration
 
     def getCallListByLine(self):
         result = defaultdict(list)
@@ -248,17 +244,26 @@ class _FileTiming(object):
         return result
 
     def getTotalTime(self):
-        return sum(x[2] for x in self.line_dict.itervalues())
+        return sum(
+            y[1]
+            for x in self.line_dict.itervalues()
+            for y in x.itervalues()
+        )
 
     def getTotalHitCount(self):
-        return sum(x[1] for x in self.line_dict.itervalues())
+        return sum(
+            y[0]
+            for x in self.line_dict.itervalues()
+            for y in x.itervalues()
+        )
 
     def getSortKey(self):
         # total duration first, then total hit count for statistical profiling
         result = [0, 0]
-        for _, hit, duration in self.line_dict.itervalues():
-            result[0] += duration
-            result[1] += hit
+        for entry in self.line_dict.itervalues():
+            for hit, duration in entry.itervalues():
+                result[0] += duration
+                result[1] += hit
         return result
 
 FileTiming = _FileTiming
@@ -432,24 +437,27 @@ class ProfileBase(object):
             file_timing.filename,
             file_timing.global_dict,
         ):
-            func, firstlineno, hits, duration = file_timing.getHitStatsFor(
-                lineno)
-            if func is None:
-                # In case the line has no hit but has a call (happens in
-                # statistical profiling, as hits are on leaves only).
-                # func & firstlineno are expected to be constant on a
-                # given line (accumulated data is redundant)
-                call_list = call_list_by_line.get(lineno)
-                if call_list:
-                    func, firstlineno = call_list[0][:2]
-            if not line and lineno > last_call_line:
-                if hits == 0:
-                    break
-                # Line exists in stats, but not in file. Happens on 1st
-                # line of empty files (ex: __init__.py). Fake the presence
-                # of an empty line.
-                line = LINESEP
-            yield lineno, func, firstlineno, hits, duration, line
+            for func, firstlineno, hits, duration in file_timing.getHitStatsFor(
+                lineno):
+                if func is None:
+                    # In case the line has no hit but has a call (happens in
+                    # statistical profiling, as hits are on leaves only).
+                    # func & firstlineno are expected to be constant on a
+                    # given line (accumulated data is redundant)
+                    call_list = call_list_by_line.get(lineno)
+                    if call_list:
+                        func, firstlineno = call_list[0][:2]
+                if not line and lineno > last_call_line:
+                    if hits == 0:
+                        break
+                    # Line exists in stats, but not in file. Happens on 1st
+                    # line of empty files (ex: __init__.py). Fake the presence
+                    # of an empty line.
+                    line = LINESEP
+                yield lineno, func, firstlineno, hits, duration, line
+            else:
+                continue
+            break
 
     def callgrind(self, out, filename=None, commandline=None, relative_path=False):
         """
