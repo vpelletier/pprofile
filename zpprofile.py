@@ -279,43 +279,44 @@ class ZopeMixIn(object):
                 '.py',
             )
         f_back = frame.f_back
-        back_code = getattr(f_back, 'f_code')
-        if filename == '<string>':
-            if back_code is SharedDCScriptsBindings_bindAndExec_func_code:
+        if f_back is not None:
+            back_code = getattr(f_back, 'f_code')
+            if filename == '<string>':
+                if back_code is SharedDCScriptsBindings_bindAndExec_func_code:
+                    return self._rememberFile(
+                        u'# This is an auto-generated preamble executed by '
+                        u'Shared.DC.Scripts.Bindings before "actual" code.\n' +
+                        disassemble(frame.f_code),
+                        'preamble',
+                        '.py.bytecode',
+                    )
+                if back_code is DT_UtilEvaleval_func_code:
+                    return self._rememberFile(
+                        f_back.f_locals['self'].expr.decode('utf-8'),
+                        'DT_Util_Eval',
+                        '.py',
+                    )
                 return self._rememberFile(
-                    u'# This is an auto-generated preamble executed by '
-                    u'Shared.DC.Scripts.Bindings before "actual" code.\n' +
-                    disassemble(frame.f_code),
-                    'preamble',
+                    u'# Unidentified source for <string>\n' + disassemble(
+                        frame.f_code,
+                    ),
+                    '%s.%s' % (filename, frame.f_code.co_name),
                     '.py.bytecode',
                 )
-            if back_code is DT_UtilEvaleval_func_code:
+            if filename == 'PythonExpr':
+                if back_code in PYTHON_EXPR_FUNC_CODE_SET:
+                    return self._rememberFile(
+                        f_back.f_locals['self'].text.decode('utf-8'),
+                        'PythonExpr',
+                        '.py',
+                    )
                 return self._rememberFile(
-                    f_back.f_locals['self'].expr.decode('utf-8'),
-                    'DT_Util_Eval',
-                    '.py',
+                    u'# Unidentified source for <PythonExpr>\n' + disassemble(
+                        frame.f_code,
+                    ),
+                    '%s.%s' % (filename, frame.f_code.co_name),
+                    '.py.bytecode',
                 )
-            return self._rememberFile(
-                u'# Unidentified source for <string>\n' + disassemble(
-                    frame.f_code,
-                ),
-                '%s.%s' % (filename, frame.f_code.co_name),
-                '.py.bytecode',
-            )
-        if filename == 'PythonExpr':
-            if back_code in PYTHON_EXPR_FUNC_CODE_SET:
-                return self._rememberFile(
-                    f_back.f_locals['self'].text.decode('utf-8'),
-                    'PythonExpr',
-                    '.py',
-                )
-            return self._rememberFile(
-                u'# Unidentified source for <PythonExpr>\n' + disassemble(
-                    frame.f_code,
-                ),
-                '%s.%s' % (filename, frame.f_code.co_name),
-                '.py.bytecode',
-            )
         return filename
 
     def asMIMEString(self):
