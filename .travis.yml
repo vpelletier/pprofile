@@ -8,26 +8,26 @@ python:
 install:
   pip install .
 script:
-  - pprofile --threads 0 demo/threads.py
-  - pprofile --format callgrind demo/threads.py
-  - pprofile --statistic .01 demo/threads.py
+  - pprofile --include demo --threads 0 demo/threads.py
+  - pprofile --include demo --format callgrind demo/threads.py
+  - pprofile --include demo --statistic .01 demo/threads.py
   - demo/embedded.py
-  - pprofile demo/threads.py
-  - pprofile demo/empty.py
+  - pprofile --include demo demo/threads.py
+  - pprofile --include demo demo/empty.py
   - pprofile --format callgrind demo/empty.py
-  - pprofile --statistic .01 demo/empty.py
+  - pprofile --include demo --statistic .01 demo/empty.py
   - pprofile --format callgrind --zipfile source_code.zip demo/threads.py
   - pprofile --format callgrind --zipfile source_code.zip demo/empty.py
   - pprofile --exclude-syspath demo/threads.py
   - pprofile --exclude-syspath --statistic .01 demo/threads.py
   - pprofile --include demo demo/encoding.py
   - LC_CTYPE=ISO-8859-15 pprofile --include demo demo/encoding.py
-  - pprofile demo/empty.py -search
-  - pprofile -- demo/empty.py -search
-  - pprofile demo/recurse.py
-  - pprofile demo/recurse2.py
-  - pprofile demo/recurse3.py
-  - pprofile demo/recurse4.py
-  - pprofile demo/twocalls.py
-  - pprofile demo/twocalls2.py
+  - pprofile --include demo demo/empty.py -search
+  - pprofile --include demo -- demo/empty.py -search
+  - pprofile --include demo demo/recurse.py
+  - pprofile --include demo demo/recurse2.py
+  - pprofile --include demo demo/recurse3.py
+  - pprofile --include demo demo/recurse4.py
+  - pprofile --include demo demo/twocalls.py
+  - pprofile --include demo demo/twocalls2.py
   - demo/fibo.py
