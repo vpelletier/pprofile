@@ -111,8 +111,6 @@ else:
     functools.update_wrapper(unrestrictedTraverse_spy, orig_unrestrictedTraverse)
     OFS.Traversable.Traversable.unrestrictedTraverse = unrestrictedTraverse_spy
 
-OFSTraversableUnrestrictedTraverse_func_code = getFuncCodeOrNone('OFS.Traversable', ('Traversable', 'unrestrictedTraverse'))
-
 _ALLSEP = os.sep + (os.altsep or '')
 PYTHON_EXPR_FUNC_CODE_SET = (ZRPythonExpr__call__func_code, PythonExpr__call__func_code)
 
