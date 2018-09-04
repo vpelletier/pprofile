@@ -95,6 +95,7 @@ PythonExpr__call__func_code = getFuncCodeOrNone('zope.tales.pythonexpr', ('Pytho
 ZRPythonExpr__call__func_code = getFuncCodeOrNone('Products.PageTemplates.ZRPythonExpr', ('PythonExpr', '__call__'))
 DT_UtilEvaleval_func_code = getFuncCodeOrNone('DocumentTemplate.DT_Util', ('Eval', 'eval'))
 SharedDCScriptsBindings_bindAndExec_func_code = getFuncCodeOrNone('Shared.DC.Scripts.Bindings', ('Bindings', '_bindAndExec'))
+PythonScript_exec_func_code = getFuncCodeOrNone('Products.PythonScripts.PythonScript', ('PythonScript', '_exec'))
 
 # OFS.Traversable.Traversable.unrestrictedTraverse overwites its path argument,
 # preventing post-invocation introspection. As it does not mutate the argument,
@@ -223,6 +224,7 @@ class ZopeMixIn(object):
         'zodb_dict',
         'fake_source_dict',
         'traverse_dict',
+        'anonymous_module_global_dict',
     )
     __allow_access_to_unprotected_subobjects__ = 1
     FileTiming = ZopeFileTiming
@@ -233,6 +235,7 @@ class ZopeMixIn(object):
         self.zodb_dict = defaultdict(lambda: defaultdict(list))
         self.fake_source_dict = {}
         self.traverse_dict = defaultdict(list)
+        self.anonymous_module_global_dict = {}
 
     def _enable(self):
         gc.disable()
@@ -266,61 +269,92 @@ class ZopeMixIn(object):
         return filename + extension
 
     def _getFilename(self, frame):
-        filename = super(ZopeMixIn, self)._getFilename(frame)
-        if filename == 'Script (Python)':
-            try:
-                script = frame.f_globals['script']
-            except KeyError:
+        parent_frame = frame.f_back
+        # Some frame in our stack may contain this frame's source.
+        # Or maybe it was in the stak at some point but not anymore
+        # (ex: callback).
+        # Lookup is not by function code, as there can be local functions
+        # inside a source-less "module". As globals are shared within a
+        # module, follow these instead.
+        # Also, these local functions can be called at call stack depths
+        # unrelated to the code responsible for their existence, further
+        # complicating the search. Hopefully it should be rare enough to
+        # keep overhead reasonable.
+        frame_globals = frame.f_globals
+        # Maybe we already investigated these globals ?
+        # Returns a 2-tuple: filename, frame_globals. frame_globals are
+        # included just to prevent their accidental re-use by an unrelated
+        # module-ish.
+        # We rely on code not willingly reusing globals between modules-ish.
+        # This mapping allows finding source when it is not in the stack
+        # anymore (callback).
+        result = self.anonymous_module_global_dict.get(id(frame_globals))
+        if result is not None:
+            return result[0]
+        while parent_frame is not None:
+            parent_code = parent_frame.f_code
+            parent_locals = parent_frame.f_locals
+            if parent_code is PythonScript_exec_func_code and parent_locals.get('g') is frame_globals:
+                python_script = parent_locals['self']
+                filename = self._rememberFile(
+                    python_script.body().decode('utf-8'),
+                    python_script.id,
+                    '.py',
+                )
+                self.anonymous_module_global_dict[id(frame_globals)] = (
+                    filename,
+                    frame_globals,
+                )
                 return filename
+            if parent_code is DT_UtilEvaleval_func_code and parent_locals.get('d') is frame_globals:
+                filename = self._rememberFile(
+                    parent_locals['self'].expr.decode('utf-8'),
+                    'DT_Util_Eval',
+                    '.py',
+                )
+                self.anonymous_module_global_dict[id(frame_globals)] = (
+                    filename,
+                    frame_globals,
+                )
+                return filename
+            if parent_code in PYTHON_EXPR_FUNC_CODE_SET and parent_locals.get('vars') is frame_globals:
+                filename = self._rememberFile(
+                    parent_locals['self'].text.decode('utf-8'),
+                    'PythonExpr',
+                    '.py',
+                )
+                self.anonymous_module_global_dict[id(frame_globals)] = (
+                    filename,
+                    frame_globals,
+                )
+                return filename
+            parent_frame = parent_frame.f_back
+        # Shared.DC.Scripts preamble is directly called by _bindAndExec.
+        # Put after stack recursion because, although simpler, this code
+        # will rarely match, while many Python Scripts, DT and Python
+        # Expressions are expected and often found at the first iteration.
+        if parent_frame is not None and parent_frame.f_code is SharedDCScriptsBindings_bindAndExec_func_code:
             return self._rememberFile(
-                script.body().decode('utf-8'),
-                script.id,
-                '.py',
+                u'# This is an auto-generated preamble executed by '
+                u'Shared.DC.Scripts.Bindings before "actual" code.\n' +
+                disassemble(frame.f_code),
+                'preamble',
+                '.py.bytecode',
             )
-        f_back = frame.f_back
-        try:
-            back_code = f_back.f_code
-        except AttributeError:
-            # Topmost frame
-            pass
-        else:
-            if filename == '<string>':
-                if back_code is SharedDCScriptsBindings_bindAndExec_func_code:
-                    return self._rememberFile(
-                        u'# This is an auto-generated preamble executed by '
-                        u'Shared.DC.Scripts.Bindings before "actual" code.\n' +
-                        disassemble(frame.f_code),
-                        'preamble',
-                        '.py.bytecode',
-                    )
-                if back_code is DT_UtilEvaleval_func_code:
-                    return self._rememberFile(
-                        f_back.f_locals['self'].expr.decode('utf-8'),
-                        'DT_Util_Eval',
-                        '.py',
-                    )
-                return self._rememberFile(
-                    u'# Unidentified source for <string>\n' + disassemble(
-                        frame.f_code,
-                    ),
-                    '%s.%s' % (filename, frame.f_code.co_name),
-                    '.py.bytecode',
-                )
-            if filename == 'PythonExpr':
-                if back_code in PYTHON_EXPR_FUNC_CODE_SET:
-                    return self._rememberFile(
-                        f_back.f_locals['self'].text.decode('utf-8'),
-                        'PythonExpr',
-                        '.py',
-                    )
-                return self._rememberFile(
-                    u'# Unidentified source for <PythonExpr>\n' + disassemble(
-                        frame.f_code,
-                    ),
-                    '%s.%s' % (filename, frame.f_code.co_name),
-                    '.py.bytecode',
-                )
-        return filename
+        # The answer was not in the stack. Maybe it filename is actually fine ?
+        # This is tested late in case linecache was patched
+        super_self = super(ZopeMixIn, self)
+        filename = super_self._getFilename(frame)
+        if super_self._getline(filename, 1, frame_globals):
+            return filename
+        # Could not find source, provide disassembled bytecode as last resort.
+        return self._rememberFile(
+            u'# Unidentified source for ' + filename + '\n' + disassemble(
+                frame.f_code,
+            ),
+            '%s.%s' % (filename, frame.f_code.co_name),
+            '.py.bytecode',
+        )
 
     def _iterOutFiles(self):
         """
