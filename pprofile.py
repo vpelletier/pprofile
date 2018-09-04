@@ -97,6 +97,7 @@ class BaseLineIterator(object):
         return lineno, self._getline(self._filename, lineno, self._global_dict)
 
 if sys.version_info < (3, ):
+    import codecs
     # Find coding specification (see PEP-0263)
     _matchCoding = re.compile(
         r'^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)',
@@ -105,22 +106,27 @@ if sys.version_info < (3, ):
         def __init__(self, *args, **kw):
             super(LineIterator, self).__init__(*args, **kw)
             # Identify encoding.
-            # PEP-0263: "the first or second line must match [_matchCoding]"
-            for lineno in (1, 2):
-                match = _matchCoding(self._getline(self._filename, lineno, self._global_dict))
-                if match is not None:
-                    self._encoding = match.group(1)
-                    break
-            else:
-                self._encoding = 'ascii'
+            first_line = self._getline(self._filename, 1, self._global_dict)
+            if isinstance(first_line, bytes):
+                # BOM - python2 only detects the (discouraged) UTF-8 BOM
+                if first_line.startswith(codecs.BOM_UTF8):
+                    self._encoding = 'utf-8'
+                else:
+                    # PEP-0263: "the first or second line must match [_matchCoding]"
+                    match = _matchCoding(first_line)
+                    if match is None:
+                        match = _matchCoding(
+                            self._getline(self._filename, 2, self._global_dict),
+                        )
+                    if match is None:
+                        self._encoding = 'ascii'
+                    else:
+                        self._encoding = match.group(1)
+                self.next = self._next
+            # else, first line is unicode, don't shadow superclass' "next".
 
-        def next(self):
+        def _next(self):
             lineno, line = super(LineIterator, self).next()
-            if isinstance(line, unicode):
-                # Custom ProfileBase._getline implementations may return
-                # unicode objects, especially if encoding does not follow
-                # PEP-0263.
-                return lineno, line
             return lineno, line.decode(self._encoding)
 else:
     # getline returns unicode objects, nothing to do
