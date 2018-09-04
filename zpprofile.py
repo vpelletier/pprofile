@@ -278,8 +278,12 @@ class ZopeMixIn(object):
                 '.py',
             )
         f_back = frame.f_back
-        if f_back is not None:
-            back_code = getattr(f_back, 'f_code')
+        try:
+            back_code = f_back.f_code
+        except AttributeError:
+            # Topmost frame
+            pass
+        else:
             if filename == '<string>':
                 if back_code is SharedDCScriptsBindings_bindAndExec_func_code:
                     return self._rememberFile(
