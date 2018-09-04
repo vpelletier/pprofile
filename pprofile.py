@@ -103,6 +103,8 @@ if sys.version_info < (3, ):
         r'^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)',
     ).match
     class LineIterator(BaseLineIterator):
+        _encoding = None
+
         def __init__(self, *args, **kw):
             super(LineIterator, self).__init__(*args, **kw)
             # Identify encoding.
@@ -122,12 +124,13 @@ if sys.version_info < (3, ):
                         self._encoding = 'ascii'
                     else:
                         self._encoding = match.group(1)
-                self.next = self._next
-            # else, first line is unicode, don't shadow superclass' "next".
+            # else, first line is unicode.
 
-        def _next(self):
+        def next(self):
             lineno, line = super(LineIterator, self).next()
-            return lineno, line.decode(self._encoding)
+            if self._encoding:
+                line = line.decode(self._encoding)
+            return lineno, line
 else:
     # getline returns unicode objects, nothing to do
     LineIterator = BaseLineIterator
