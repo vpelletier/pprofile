@@ -5,7 +5,7 @@ In Zope:
 - Executed code is not necessarily a valid FS path (ex: Python Scripts)
 - Executed code is not available to the machine where profiling results are
   analysed.
-- Restricted Python cannot manipulate all desired types, and you may want to
+- Restricted Python cannot manipulate all desired types, and one may want to
   trigger profiling from its level.
 
 This layer addresses all these issues, by making interesting pprofile classes
@@ -28,11 +28,11 @@ Example deterministic usage:
         func()
     # Build response
     response = context.REQUEST.RESPONSE
-    data, content_type = profiler.asMIMEString()
+    data, content_type = profiler.asZip()
     response.setHeader('content-type', content_type)
     response.setHeader(
         'content-disposition',
-        'attachment; filename="' + func.id + '.multipart"',
+        'attachment; filename="' + func.id + '.zip"',
     )
     # Push response immediately (hopefully, profiled function did not write
     # anything on its own).
@@ -52,13 +52,13 @@ Example statistic usage (to profile other running threads):
         sleep(60)
     # Build response
     response = context.REQUEST.RESPONSE
-    data, content_type = profiler.asMIMEString()
+    data, content_type = profiler.asZip()
     response.setHeader('content-type', content_type)
     response.setHeader(
         'content-disposition',
         'attachment; filename="statistical_' +
           DateTime().strftime('%Y%m%d%H%M%S') +
-        '.multipart"',
+        '.zip"',
     )
     return data
 """
@@ -70,11 +70,12 @@ from email.mime.application import MIMEApplication
 from email.encoders import encode_quopri
 import functools
 import gc
-from io import StringIO
+from io import StringIO, BytesIO
 from importlib import import_module
 import itertools
 import os
 from collections import defaultdict
+import zipfile
 import pprofile
 
 def getFuncCodeOrNone(module, attribute_path):
@@ -319,104 +320,71 @@ class ZopeMixIn(object):
                 )
         return filename
 
-    def asMIMEString(self):
+    def _iterOutFiles(self):
         """
-        Return a mime-multipart representation of:
-        - callgrind profiling statistics (cachegrind.out.pprofile)
-        - any SQL query issued via ZMySQLDA (query_*.sql)
-        - any persistent object load via ZODB.Connection (ZODB_setstate.txt)
-        - all involved python code, including Python Scripts without hierarchy
-          (the rest)
-        Does not rely on any local filesystem, which zipfile/tarfile would
-        require.
-        To unpack resulting file, see "unpack a MIME message" in
-          http://docs.python.org/2/library/email-examples.html
-        Or get demultipart from
-          https://pypi.python.org/pypi/demultipart
+        Yields path, data, mimetype for each file involved on or produced by
+        profiling.
         """
-        result = MIMEMultipart()
-
         out = StringIO()
         self.callgrind(out, relative_path=True)
-        profile = MIMEApplication(
+        yield (
+            'cachegrind.out.pprofile',
             out.getvalue(),
-            'x-kcachegrind',
-            encode_quopri,
+            'application/x-kcachegrind',
         )
-        profile.add_header(
-            'Content-Disposition',
-            'attachment',
-            filename='cachegrind.out.pprofile',
-        )
-        result.attach(profile)
-
         for name, lines in self.iterSource():
             lines = ''.join(lines)
             if lines:
-                pyfile = MIMEText(lines, 'x-python', 'utf-8')
-                pyfile.add_header(
-                    'Content-Disposition',
-                    'attachment',
-                    filename=os.path.normpath(
+                yield (
+                    os.path.normpath(
                         os.path.splitdrive(name)[1]
                     ).lstrip(_ALLSEP),
+                    lines,
+                    'text/x-python',
                 )
-                result.attach(pyfile)
-
         sql_name_template = 'query_%%0%ii-%%i_hits_%%6fs.sql' % len(
-            str(len(self.sql_dict))
+            str(len(self.sql_dict)),
         )
         for index, (query, time_list) in enumerate(
-                    sorted(
-                        self.sql_dict.iteritems(),
-                        key=lambda x: (sum(x[1]), len(x[1])),
-                        reverse=True,
-                    ),
-                ):
-            sqlfile = MIMEApplication(
-                '\n'.join(
-                    '-- %10.6fs' % x
-                    for x in time_list
-                ) + '\n' + query, 'sql',
-                encode_quopri,
-            )
-            sqlfile.add_header(
-                'Content-Disposition',
-                'attachment',
-                filename=sql_name_template % (
+            sorted(
+                self.sql_dict.iteritems(),
+                key=lambda x: (sum(x[1]), len(x[1])),
+                reverse=True,
+            ),
+        ):
+            yield (
+                sql_name_template % (
                     index,
                     len(time_list),
                     sum(time_list),
                 ),
+                b'\n'.join(b'-- %10.6fs' % x for x in time_list) + b'\n' + query,
+                'application/sql',
             )
-            result.attach(sqlfile)
-
         if self.zodb_dict:
-            zodbfile = MIMEText('\n\n'.join(
-                (
-                    '%s (%fs)\n' % (
-                        db_name,
-                        sum(sum(x) for x in oid_dict.itervalues()),
+            yield (
+                'ZODB_setstate.txt',
+                '\n\n'.join(
+                    (
+                        '%s (%fs)\n' % (
+                            db_name,
+                            sum(sum(x) for x in oid_dict.itervalues()),
+                        )
+                    ) + '\n'.join(
+                        '%s (%i): %s' % (
+                            oid.encode('hex'),
+                            len(time_list),
+                            ', '.join('%fs' % x for x in time_list),
+                        )
+                        for oid, time_list in oid_dict.iteritems()
                     )
-                ) + '\n'.join(
-                    '%s (%i): %s' % (
-                        oid.encode('hex'),
-                        len(time_list),
-                        ', '.join('%fs' % x for x in time_list),
-                    )
-                    for oid, time_list in oid_dict.iteritems()
-                )
-                for db_name, oid_dict in self.zodb_dict.iteritems()
-            ), 'plain')
-            zodbfile.add_header(
-                'Content-Disposition',
-                'attachment',
-                filename='ZODB_setstate.txt',
+                    for db_name, oid_dict in self.zodb_dict.iteritems()
+                ),
+                'text/plain',
             )
-            result.attach(zodbfile)
-
         if self.traverse_dict:
-            traverse_file = MIMEText(
+            yield (
+                'unrestrictedTraverse_pathlist.txt',
                 tabulate(
                     ('self', 'path', 'hit', 'total duration'),
                     sorted(
@@ -428,17 +396,69 @@ class ZopeMixIn(object):
                         reverse=True,
                     ),
                 ),
-                'plain',
-                'utf-8',
+                'text/plain',
             )
-            traverse_file.add_header(
+
+    def asMIMEString(self):
+        """
+        Return a mime-multipart representation of:
+        - callgrind profiling statistics (cachegrind.out.pprofile)
+        - any SQL query issued via ZMySQLDA (query_*.sql)
+        - any persistent object load via ZODB.Connection (ZODB_setstate.txt)
+        - any path argument given to unrestrictedTraverse
+          (unrestrictedTraverse_pathlist.txt)
+        - all involved python code, including Python Scripts without hierarchy
+          (the rest)
+        To unpack resulting file, see "unpack a MIME message" in
+          http://docs.python.org/2/library/email-examples.html
+        Or get demultipart from
+          https://pypi.python.org/pypi/demultipart
+        """
+        result = MIMEMultipart()
+        base_type_dict = {
+            'application': MIMEApplication,
+            'text': MIMEText,
+        }
+        encoder_dict = {
+            'application/x-kcachegrind': encode_quopri,
+            'text/x-python': 'utf-8',
+            'text/plain': 'utf-8',
+        }
+        for path, data, mimetype in self._iterOutFiles():
+            base_type, sub_type = mimetype.split('/')
+            chunk = base_type_dict[base_type](
+                data,
+                sub_type,
+                encoder_dict.get(mimetype),
+            )
+            chunk.add_header(
                 'Content-Disposition',
                 'attachment',
-                filename='unrestrictedTraverse_pathlist.txt',
+                filename=path,
             )
-            result.attach(traverse_file)
-
+            result.attach(chunk)
         return result.as_string(), result['content-type']
+
+    def asZip(self):
+        """
+        Return a serialised zip archive containing:
+        - callgrind profiling statistics (cachegrind.out.pprofile)
+        - any SQL query issued via ZMySQLDA (query_*.sql)
+        - any persistent object load via ZODB.Connection (ZODB_setstate.txt)
+        - any path argument given to unrestrictedTraverse
+          (unrestrictedTraverse_pathlist.txt)
+        - all involved python code, including Python Scripts without hierarchy
+          (the rest)
+        """
+        out = BytesIO()
+        with zipfile.ZipFile(
+            out,
+            mode='w',
+            compression=zipfile.ZIP_DEFLATED,
+        ) as outfile:
+            for path, data, _ in self._iterOutFiles():
+                outfile.writestr(path, data)
+        return out.getvalue(), 'application/zip'
 
 class ZopeProfiler(ZopeMixIn, pprofile.Profile):
     __slots__ = ZopeMixIn.virtual__slots__
