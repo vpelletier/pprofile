@@ -129,7 +129,7 @@ if sys.version_info < (3, ):
         def next(self):
             lineno, line = super(LineIterator, self).next()
             if self._encoding:
-                line = line.decode(self._encoding)
+                line = line.decode(self._encoding, errors='replace')
             return lineno, line
 else:
     # getline returns unicode objects, nothing to do
