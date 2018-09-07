@@ -163,13 +163,6 @@ class EncodeOrReplaceWriter(object):
                 errors='replace',
             ).decode(self._encoding))
 
-def _getFuncOrFile(func, module, firstlineno):
-    if func == '<module>':
-        return module
-    # Without involving firstlineno, cachegrind out has no way to distinguish
-    # homonym functions within the same file.
-    return '%s:%i' % (func, firstlineno)
-
 def _isCallgrindName(filepath):
     return os.path.basename(filepath).startswith('cachegrind.out.')
 
@@ -239,12 +232,7 @@ class _FileTiming(object):
 
     def getHitStatsFor(self, line):
         for code, (hits, duration) in self.line_dict.get(line, {None: (0, 0)}).iteritems():
-            if code is None:
-                firstlineno = None
-            else:
-                firstlineno = code.co_firstlineno
-                code = code.co_name
-            yield code, firstlineno, hits, duration
+            yield code, hits, duration
 
     def getLastLine(self):
         return max(
@@ -257,9 +245,9 @@ class _FileTiming(object):
         for (code, line, callee), (callee_file_timing, hit, duration) in \
                 self.call_dict.iteritems():
             result[line].append((
-                code.co_name, code.co_firstlineno,
+                code,
                 hit, duration,
-                callee_file_timing.filename, callee.co_firstlineno, callee.co_name,
+                callee_file_timing.filename, callee,
             ))
         return result
 
@@ -460,17 +448,16 @@ class ProfileBase(object):
         ):
             if not line and lineno > last_line:
                 break
-            for func, firstlineno, hits, duration in file_timing.getHitStatsFor(
-                lineno):
-                if func is None:
+            for code, hits, duration in file_timing.getHitStatsFor(lineno):
+                if code is None:
                     # In case the line has no hit but has a call (happens in
                     # statistical profiling, as hits are on leaves only).
-                    # func & firstlineno are expected to be constant on a
+                    # code are expected to be constant on a
                     # given line (accumulated data is redundant)
                     call_list = call_list_by_line.get(lineno)
                     if call_list:
-                        func, firstlineno = call_list[0][:2]
-                yield lineno, func, firstlineno, hits, duration, line or LINESEP
+                        code = call_list[0][0]
+                yield lineno, code, hits, duration, line or LINESEP
 
     def callgrind(self, out, filename=None, commandline=None, relative_path=False):
         """
@@ -514,6 +501,23 @@ class ProfileBase(object):
             convertPath = lambda x, cascade=convertPath: cascade(
                 '/'.join(x.split(os.path.sep))
             )
+        code_to_name_dict = {}
+        homonym_counter = {}
+        def getCodeName(filename, code):
+            # Tracks code objects globally, because callee information needs
+            # to be consistent accross files.
+            # Inside a file, grants unique names to each code object.
+            try:
+                return code_to_name_dict[code]
+            except KeyError:
+                name = code.co_name + ':%i' % code.co_firstlineno
+                key = (filename, name)
+                homonym_count = homonym_counter.get(key, 0)
+                if homonym_count:
+                    name += '_%i' % homonym_count
+                homonym_counter[key] = homonym_count + 1
+                code_to_name_dict[code] = name
+                return name
         for current_file in self._getFileNameList(filename, may_sort=False):
             call_list_by_line = file_dict[current_file].getCallListByLine()
             print(u'fl=%s' % convertPath(current_file), file=out)
@@ -526,7 +530,7 @@ class ProfileBase(object):
             # Note: cost line is a list just to be mutable. A single item is
             # expected.
             func_dict = defaultdict(lambda: defaultdict(lambda: ([], [])))
-            for lineno, func, firstlineno, hits, duration, _ in self._iterFile(
+            for lineno, code, hits, duration, _ in self._iterFile(
                     current_file, call_list_by_line):
                 call_list = call_list_by_line.get(lineno, ())
                 if not hits and not call_list:
@@ -536,25 +540,25 @@ class ProfileBase(object):
                     ticksperhit = 0
                 else:
                     ticksperhit = ticks // hits
-                func_dict[(func, firstlineno)][lineno][0].append(
+                func_dict[getCodeName(current_file, code)][lineno][0].append(
                     u'%i %i %i %i' % (lineno, hits, ticks, ticksperhit),
                 )
                 for (
-                    caller_func, caller_firstlineno,
+                    caller,
                     call_hits, call_duration,
-                    callee_file, callee_line, callee_func,
+                    callee_file, callee,
                 ) in sorted(call_list, key=lambda x: x[2:4]):
                     call_ticks = int(call_duration * 1000000)
                     func_call_list = func_dict[
-                        (caller_func, caller_firstlineno)
+                        getCodeName(current_file, caller)
                     ][lineno][1]
                     append = func_call_list.append
                     append(u'cfl=' + convertPath(callee_file))
-                    append(u'cfn=%s' % _getFuncOrFile(callee_func, callee_file, callee_line))
-                    append(u'calls=%i %i' % (call_hits, callee_line))
+                    append(u'cfn=' + getCodeName(callee_file, callee))
+                    append(u'calls=%i %i' % (call_hits, callee.co_firstlineno))
                     append(u'%i %i %i %i' % (lineno, call_hits, call_ticks, call_ticks // call_hits))
-            for (func, firstlineno), line_dict in func_dict.iteritems():
-                print(u'fn=%s' % _getFuncOrFile(func, current_file, firstlineno), file=out)
+            for func_name, line_dict in func_dict.iteritems():
+                print(u'fn=%s' % func_name, file=out)
                 for lineno, (func_hit_list, func_call_list) in sorted(line_dict.iteritems()):
                     if func_hit_list:
                         line, = func_hit_list
@@ -600,7 +604,7 @@ class ProfileBase(object):
                 percent(file_total_time, total_time)), file=out)
             print(_ANNOTATE_HEADER, file=out)
             print(_ANNOTATE_HORIZONTAL_LINE, file=out)
-            for lineno, _, _, hits, duration, line in self._iterFile(name,
+            for lineno, _, hits, duration, line in self._iterFile(name,
                     call_list_by_line):
                 if hits:
                     time_per_hit = duration / hits
@@ -615,9 +619,9 @@ class ProfileBase(object):
                     u'line': line.rstrip(),
                 }, file=out)
                 for (
-                    _, _,
+                    _,
                     call_hits, call_duration,
-                    callee_file, callee_line, callee_name,
+                    callee_file, callee,
                 ) in call_list_by_line.get(lineno, ()):
                     print(_ANNOTATE_CALL_FORMAT % {
                         u'hits': call_hits,
@@ -625,8 +629,8 @@ class ProfileBase(object):
                         u'time_per_hit': call_duration / call_hits,
                         u'percent': percent(call_duration, total_time),
                         u'callee_file': callee_file,
-                        u'callee_line': callee_line,
-                        u'callee_name': callee_name,
+                        u'callee_line': callee.co_firstlineno,
+                        u'callee_name': callee.co_name,
                     }, file=out)
 
     def _iterRawFile(self, name):
