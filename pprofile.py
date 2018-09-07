@@ -554,8 +554,7 @@ class ProfileBase(object):
                         (caller_func, caller_firstlineno)
                     ][lineno][1]
                     append = func_call_list.append
-                    if callee_file != current_file:
-                        append(u'cfl=%s' % convertPath(callee_file))
+                    append(u'cfl=' + convertPath(callee_file))
                     append(u'cfn=%s' % _getFuncOrFile(callee_func, callee_file, callee_line))
                     append(u'calls=%i %i' % (call_hits, callee_line))
                     append(u'%i %i %i %i' % (lineno, call_hits, call_ticks, call_ticks // call_hits))
