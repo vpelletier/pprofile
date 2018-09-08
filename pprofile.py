@@ -366,23 +366,16 @@ class ProfileBase(object):
 
     def _getFileTiming(self, frame):
         try:
-            # Using f_code id as key so same-code objects are not mixed
-            # together.
-            return self.global_dict[id(frame.f_code)][0]
+            return self.global_dict[id(frame.f_globals)]
         except KeyError:
             f_globals = frame.f_globals
             name = self._getFilename(frame)
-            try:
-                file_timing = self.file_dict[name]
-            except KeyError:
-                self.file_dict[name] = file_timing = self.FileTiming(
-                    name,
-                    f_globals,
-                    self,
-                )
-            # Keeping a reference to keyed code object so its id cannot be
-            # reused.
-            self.global_dict[id(frame.f_code)] = (file_timing, frame.f_code)
+            self.global_dict[id(frame.f_globals)] = file_timing = self.FileTiming(
+                name,
+                f_globals,
+                self,
+            )
+            self.file_dict[name] = file_timing
             return file_timing
 
     @staticmethod
