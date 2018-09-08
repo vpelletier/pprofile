@@ -535,10 +535,7 @@ class ProfileBase(object):
                     caller,
                     call_hits, call_duration,
                     callee_file, callee,
-                ) in sorted(
-                    call_list_by_line.get(lineno, ()),
-                    key=lambda x: x[2:4],
-                ):
+                ) in call_list_by_line.get(lineno, ()):
                     call_ticks = int(call_duration * 1000000)
                     func_call_list = func_dict[
                         getCodeName(current_file, caller)
