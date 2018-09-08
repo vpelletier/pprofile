@@ -838,7 +838,8 @@ class Profile(ProfileBase, ProfileRunnerBase):
                 self.disable()
                 return None
             frame_time, frame_discount, lineno, line_time, line_duration = stack_entry
-            self._getFileTiming(frame).hit(frame.f_code, lineno,
+            file_timing = self._getFileTiming(frame)
+            file_timing.hit(frame.f_code, lineno,
                 event_time - line_time + line_duration)
             if event == 'line':
                 # Start a new line
@@ -862,7 +863,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
                     callee_entry_list[-1][1] += call_duration
                 self._getFileTiming(caller_frame).call(
                     caller_code, caller_frame.f_lineno,
-                    self._getFileTiming(frame),
+                    file_timing,
                     callee_code, call_duration - frame_discount,
                     frame,
                 )
