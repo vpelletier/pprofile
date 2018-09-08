@@ -57,6 +57,7 @@ import argparse
 import codecs
 import io
 import inspect
+from itertools import count
 import linecache
 import os
 # not caught by 2to3, likely because pipes.quote is not documented in python 2
@@ -489,7 +490,7 @@ class ProfileBase(object):
                 code_to_name_dict[code] = name
                 return name
         for current_file in self._getFileNameList(filename, may_sort=False):
-            file_timing = self.file_dict[current_file]
+            file_timing = file_dict[current_file]
             print(u'fl=%s' % convertPath(current_file), file=out)
             # When a local callable is created an immediately executed, this
             # loop would start a new "fn=" section but would not end it before
@@ -611,10 +612,8 @@ class ProfileBase(object):
                     }, file=out)
 
     def _iterRawFile(self, name):
-        lineno = 0
-        file_timing = self.file_dict[name]
-        while True:
-            lineno += 1
+        file_timing = self._mergeFileTiming()[name]
+        for lineno in count(1):
             line = self._getline(file_timing.filename, lineno,
                 file_timing.global_dict)
             if not line:
