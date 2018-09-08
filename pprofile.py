@@ -54,6 +54,7 @@ from functools import partial, wraps
 from time import time
 from warnings import warn
 import argparse
+import codecs
 import io
 import inspect
 import linecache
@@ -97,7 +98,6 @@ class BaseLineIterator(object):
         return lineno, self._getline(self._filename, lineno, self._global_dict)
 
 if sys.version_info < (3, ):
-    import codecs
     # Find coding specification (see PEP-0263)
     _matchCoding = re.compile(
         r'^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)',
@@ -141,23 +141,8 @@ else:
     def quoteCommandline(commandline):
         return ' '.join(shlex_quote(x) for x in commandline)
 
-class EncodeOrReplaceWriter(object):
-    """
-    Write-only file-ish object which replaces unsupported chars when
-    underlying file rejects them.
-    """
-    def __init__(self, out):
-        self._encoding = out.encoding
-        self._write = out.write
-
-    def write(self, data):
-        try:
-            self._write(data)
-        except UnicodeEncodeError:
-            self._write(data.encode(
-                self._encoding,
-                errors='replace',
-            ).decode(self._encoding))
+def _getWriter(stream):
+    return codecs.getwriter(stream.encoding or 'utf-8')(stream, 'replace')
 
 def _isCallgrindName(filepath):
     return os.path.basename(filepath).startswith('cachegrind.out.')
@@ -672,7 +657,7 @@ class ProfileBase(object):
         Similar to profile.Profile.print_stats .
         Returns None.
         """
-        self.annotate(EncodeOrReplaceWriter(sys.stdout))
+        self.annotate(_getWriter(sys.stdout))
 
 class ProfileRunnerBase(object):
     def __call__(self):
@@ -1268,7 +1253,7 @@ def _main(argv, stdin=None):
         getattr(runner, runner_method_id)(**runner_method_kw)
     finally:
         if options.out == '-':
-            out = EncodeOrReplaceWriter(sys.stdout)
+            out = _getWriter(sys.stdout)
             close = lambda: None
         else:
             out = io.open(options.out, 'w', errors='replace')
