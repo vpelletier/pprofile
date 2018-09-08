@@ -141,10 +141,6 @@ else:
     def quoteCommandline(commandline):
         return ' '.join(shlex_quote(x) for x in commandline)
 
-LINESEP = os.linesep
-if isinstance(LINESEP, bytes):
-    LINESEP = LINESEP.decode()
-
 class EncodeOrReplaceWriter(object):
     """
     Write-only file-ish object which replaces unsupported chars when
@@ -231,11 +227,11 @@ class _FileTiming(object):
             entry[2] += duration
 
     def getHitStatsFor(self, line):
-        try:
-            for code, (hits, duration) in self.line_dict[line].iteritems():
-                yield code, hits, duration
-        except KeyError:
-            pass
+        total_hits = total_duration = 0
+        for hits, duration in self.line_dict.get(line, {}).itervalues():
+            total_hits += hits
+            total_duration += duration
+        return total_hits, total_duration
 
     def getLastLine(self):
         return max(
@@ -243,14 +239,28 @@ class _FileTiming(object):
             max(x for _, x, _ in self.call_dict) if self.call_dict else 0,
         )
 
-    def getCallListByLine(self):
-        result = defaultdict(list)
+    def iterHits(self):
+        for line, code_dict in self.line_dict.iteritems():
+            for code, (hits, duration) in code_dict.iteritems():
+                yield line, code, hits, duration
+
+    def iterCalls(self):
         for (code, line, callee), (callee_file_timing, hit, duration) in \
                 self.call_dict.iteritems():
-            result[line].append((
+            yield (
+                line,
                 code,
                 hit, duration,
                 callee_file_timing.filename, callee,
+            )
+
+    def getCallListByLine(self):
+        result = defaultdict(list)
+        for line, code, hit, duration, callee_filename, callee in self.iterCalls():
+            result[line].append((
+                code,
+                hit, duration,
+                callee_filename, callee,
             ))
         return result
 
@@ -441,19 +451,6 @@ class ProfileBase(object):
                 )
         return filename
 
-    def _iterFile(self, name):
-        file_timing = self.file_dict[name]
-        last_line = file_timing.getLastLine()
-        for lineno, line in LineIterator(
-            self._getline,
-            file_timing.filename,
-            file_timing.global_dict,
-        ):
-            if not line and lineno > last_line:
-                break
-            for code, hits, duration in file_timing.getHitStatsFor(lineno):
-                yield lineno, code, hits, duration, line or LINESEP
-
     def callgrind(self, out, filename=None, commandline=None, relative_path=False):
         """
         Dump statistics in callgrind format.
@@ -514,7 +511,7 @@ class ProfileBase(object):
                 code_to_name_dict[code] = name
                 return name
         for current_file in self._getFileNameList(filename, may_sort=False):
-            call_list_by_line = file_dict[current_file].getCallListByLine()
+            file_timing = self.file_dict[current_file]
             print(u'fl=%s' % convertPath(current_file), file=out)
             # When a local callable is created an immediately executed, this
             # loop would start a new "fn=" section but would not end it before
@@ -525,25 +522,25 @@ class ProfileBase(object):
             # Note: cost line is a list just to be mutable. A single item is
             # expected.
             func_dict = defaultdict(lambda: defaultdict(lambda: ([], [])))
-            for lineno, code, hits, duration, _ in self._iterFile(current_file):
-                if hits:
-                    func_dict[getCodeName(current_file, code)][lineno][0].append(
-                        (hits, int(duration * 1000000)),
-                    )
-                for (
-                    caller,
-                    call_hits, call_duration,
-                    callee_file, callee,
-                ) in call_list_by_line.get(lineno, ()):
-                    call_ticks = int(call_duration * 1000000)
-                    func_call_list = func_dict[
-                        getCodeName(current_file, caller)
-                    ][lineno][1]
-                    append = func_call_list.append
-                    append(u'cfl=' + convertPath(callee_file))
-                    append(u'cfn=' + getCodeName(callee_file, callee))
-                    append(u'calls=%i %i' % (call_hits, callee.co_firstlineno))
-                    append(u'%i %i %i %i' % (lineno, call_hits, call_ticks, call_ticks // call_hits))
+            for lineno, code, hits, duration in file_timing.iterHits():
+                func_dict[getCodeName(current_file, code)][lineno][0].append(
+                    (hits, int(duration * 1000000)),
+                )
+            for (
+                lineno,
+                caller,
+                call_hits, call_duration,
+                callee_file, callee,
+            ) in file_timing.iterCalls():
+                call_ticks = int(call_duration * 1000000)
+                func_call_list = func_dict[
+                    getCodeName(current_file, caller)
+                ][lineno][1]
+                append = func_call_list.append
+                append(u'cfl=' + convertPath(callee_file))
+                append(u'cfn=' + getCodeName(callee_file, callee))
+                append(u'calls=%i %i' % (call_hits, callee.co_firstlineno))
+                append(u'%i %i %i %i' % (lineno, call_hits, call_ticks, call_ticks // call_hits))
             for func_name, line_dict in func_dict.iteritems():
                 print(u'fn=%s' % func_name, file=out)
                 for lineno, (func_hit_list, func_call_list) in sorted(line_dict.iteritems()):
@@ -603,18 +600,22 @@ class ProfileBase(object):
                 percent(file_total_time, total_time)), file=out)
             print(_ANNOTATE_HEADER, file=out)
             print(_ANNOTATE_HORIZONTAL_LINE, file=out)
-            for lineno, _, hits, duration, line in self._iterFile(name):
-                if hits:
-                    time_per_hit = duration / hits
-                else:
-                    time_per_hit = 0
+            last_line = file_timing.getLastLine()
+            for lineno, line in LineIterator(
+                self._getline,
+                file_timing.filename,
+                file_timing.global_dict,
+            ):
+                if not line and lineno > last_line:
+                    break
+                hits, duration = file_timing.getHitStatsFor(lineno)
                 print(_ANNOTATE_FORMAT % {
                     u'lineno': lineno,
                     u'hits': hits,
                     u'time': duration,
-                    u'time_per_hit': time_per_hit,
+                    u'time_per_hit': duration / hits if hits else 0,
                     u'percent': percent(duration, total_time),
-                    u'line': line.rstrip(),
+                    u'line': (line or u'').rstrip(),
                 }, file=out)
                 for (
                     _,
