@@ -630,7 +630,7 @@ class ProfileBase(object):
         Can be used to generate a file tree for use with kcachegrind, for
         example.
         """
-        for name in self._getFileNameList(None):
+        for name in self.getFilenameSet():
             yield name, self._iterRawFile(name)
 
     # profile/cProfile-like API
