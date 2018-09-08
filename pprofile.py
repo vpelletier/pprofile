@@ -527,9 +527,8 @@ class ProfileBase(object):
             func_dict = defaultdict(lambda: defaultdict(lambda: ([], [])))
             for lineno, code, hits, duration, _ in self._iterFile(current_file):
                 if hits:
-                    ticks = int(duration * 1000000)
                     func_dict[getCodeName(current_file, code)][lineno][0].append(
-                        u'%i %i %i %i' % (lineno, hits, ticks, ticks // hits),
+                        (hits, int(duration * 1000000)),
                     )
                 for (
                     caller,
@@ -549,8 +548,16 @@ class ProfileBase(object):
                 print(u'fn=%s' % func_name, file=out)
                 for lineno, (func_hit_list, func_call_list) in sorted(line_dict.iteritems()):
                     if func_hit_list:
-                        line, = func_hit_list
-                        print(line, file=out)
+                        hits, ticks, = func_hit_list
+                        print(
+                            u'%i %i %i %i' % (
+                                lineno,
+                                hits,
+                                ticks,
+                                ticks // hits,
+                            ),
+                            file=out,
+                        )
                     for line in func_call_list:
                         print(line, file=out)
 
