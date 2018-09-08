@@ -548,7 +548,11 @@ class ProfileBase(object):
                 print(u'fn=%s' % func_name, file=out)
                 for lineno, (func_hit_list, func_call_list) in sorted(line_dict.iteritems()):
                     if func_hit_list:
-                        hits, ticks, = func_hit_list
+                        # Multiple function objects may "reside" on the same
+                        # line of the same file (same global dict).
+                        # Sum these up and produce a single cachegrind event.
+                        hits = sum(x for x, _ in func_hit_list)
+                        ticks = sum(x for _, x in func_hit_list)
                         print(
                             u'%i %i %i %i' % (
                                 lineno,
