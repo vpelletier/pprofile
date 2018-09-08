@@ -246,6 +246,12 @@ class _FileTiming(object):
                 code = code.co_name
             yield code, firstlineno, hits, duration
 
+    def getLastLine(self):
+        return max(
+            max(self.line_dict) if self.line_dict else 0,
+            max(x for _, x, _ in self.call_dict) if self.call_dict else 0,
+        )
+
     def getCallListByLine(self):
         result = defaultdict(list)
         for (code, line, callee), (callee_file_timing, hit, duration) in \
@@ -445,16 +451,15 @@ class ProfileBase(object):
         return filename
 
     def _iterFile(self, name, call_list_by_line):
-        if call_list_by_line:
-            last_call_line = max(call_list_by_line)
-        else:
-            last_call_line = 0
         file_timing = self.file_dict[name]
+        last_line = file_timing.getLastLine()
         for lineno, line in LineIterator(
             self._getline,
             file_timing.filename,
             file_timing.global_dict,
         ):
+            if not line and lineno > last_line:
+                break
             for func, firstlineno, hits, duration in file_timing.getHitStatsFor(
                 lineno):
                 if func is None:
@@ -465,17 +470,7 @@ class ProfileBase(object):
                     call_list = call_list_by_line.get(lineno)
                     if call_list:
                         func, firstlineno = call_list[0][:2]
-                if not line and lineno > last_call_line:
-                    if hits == 0:
-                        break
-                    # Line exists in stats, but not in file. Happens on 1st
-                    # line of empty files (ex: __init__.py). Fake the presence
-                    # of an empty line.
-                    line = LINESEP
-                yield lineno, func, firstlineno, hits, duration, line
-            else:
-                continue
-            break
+                yield lineno, func, firstlineno, hits, duration, line or LINESEP
 
     def callgrind(self, out, filename=None, commandline=None, relative_path=False):
         """
