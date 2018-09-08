@@ -231,8 +231,11 @@ class _FileTiming(object):
             entry[2] += duration
 
     def getHitStatsFor(self, line):
-        for code, (hits, duration) in self.line_dict.get(line, {None: (0, 0)}).iteritems():
-            yield code, hits, duration
+        try:
+            for code, (hits, duration) in self.line_dict[line].iteritems():
+                yield code, hits, duration
+        except KeyError:
+            pass
 
     def getLastLine(self):
         return max(
@@ -438,7 +441,7 @@ class ProfileBase(object):
                 )
         return filename
 
-    def _iterFile(self, name, call_list_by_line):
+    def _iterFile(self, name):
         file_timing = self.file_dict[name]
         last_line = file_timing.getLastLine()
         for lineno, line in LineIterator(
@@ -449,14 +452,6 @@ class ProfileBase(object):
             if not line and lineno > last_line:
                 break
             for code, hits, duration in file_timing.getHitStatsFor(lineno):
-                if code is None:
-                    # In case the line has no hit but has a call (happens in
-                    # statistical profiling, as hits are on leaves only).
-                    # code are expected to be constant on a
-                    # given line (accumulated data is redundant)
-                    call_list = call_list_by_line.get(lineno)
-                    if call_list:
-                        code = call_list[0][0]
                 yield lineno, code, hits, duration, line or LINESEP
 
     def callgrind(self, out, filename=None, commandline=None, relative_path=False):
@@ -530,24 +525,20 @@ class ProfileBase(object):
             # Note: cost line is a list just to be mutable. A single item is
             # expected.
             func_dict = defaultdict(lambda: defaultdict(lambda: ([], [])))
-            for lineno, code, hits, duration, _ in self._iterFile(
-                    current_file, call_list_by_line):
-                call_list = call_list_by_line.get(lineno, ())
-                if not hits and not call_list:
-                    continue
-                ticks = int(duration * 1000000)
-                if hits == 0:
-                    ticksperhit = 0
-                else:
-                    ticksperhit = ticks // hits
-                func_dict[getCodeName(current_file, code)][lineno][0].append(
-                    u'%i %i %i %i' % (lineno, hits, ticks, ticksperhit),
-                )
+            for lineno, code, hits, duration, _ in self._iterFile(current_file):
+                if hits:
+                    ticks = int(duration * 1000000)
+                    func_dict[getCodeName(current_file, code)][lineno][0].append(
+                        u'%i %i %i %i' % (lineno, hits, ticks, ticks // hits),
+                    )
                 for (
                     caller,
                     call_hits, call_duration,
                     callee_file, callee,
-                ) in sorted(call_list, key=lambda x: x[2:4]):
+                ) in sorted(
+                    call_list_by_line.get(lineno, ()),
+                    key=lambda x: x[2:4],
+                ):
                     call_ticks = int(call_duration * 1000000)
                     func_call_list = func_dict[
                         getCodeName(current_file, caller)
@@ -604,8 +595,7 @@ class ProfileBase(object):
                 percent(file_total_time, total_time)), file=out)
             print(_ANNOTATE_HEADER, file=out)
             print(_ANNOTATE_HORIZONTAL_LINE, file=out)
-            for lineno, _, hits, duration, line in self._iterFile(name,
-                    call_list_by_line):
+            for lineno, _, hits, duration, line in self._iterFile(name):
                 if hits:
                     time_per_hit = duration / hits
                 else:
