@@ -750,6 +750,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         else:
             self._global_trace = self._real_global_trace
             self._local_trace = self._real_local_trace
+        self.stack = None
         self.enabled_start = None
 
     def _enable(self):
@@ -757,11 +758,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         Overload this method when subclassing. Called before actually
         enabling trace.
         """
-        try:
-            self.stack
-        except AttributeError:
-            # In case subclass declared stack as descriptor.
-            self.stack = _initStack()
+        self.stack = _initStack()
         self.enabled_start = time()
 
     def enable(self):
