@@ -357,11 +357,13 @@ class ProfileBase(object):
         'total_time',
         '__dict__',
         '__weakref__',
+        'merged_file_dict',
     )
     FileTiming = _FileTiming
 
     def __init__(self):
         self.file_dict = {}
+        self.merged_file_dict = {}
         self.global_dict = {}
         self.total_time = 0
 
@@ -396,7 +398,70 @@ class ProfileBase(object):
         return linecache.getline(filename, lineno, global_dict)
 
     def _mergeFileTiming(self, rebuild=False):
-        return self.file_dict
+        merged_file_dict = self.merged_file_dict
+        if merged_file_dict and not rebuild:
+            return merged_file_dict
+        merged_file_dict.clear()
+        # Regroup by module, to find all duplicates from other threads.
+        by_global_dict = defaultdict(list)
+        for file_timing_list in self.file_dict.itervalues():
+            for file_timing in file_timing_list:
+                by_global_dict[
+                    id(file_timing.global_dict)
+                ].append(
+                    file_timing,
+                )
+        # Resolve name conflicts.
+        global_to_named_dict = {}
+        for global_dict_id, file_timing_list in by_global_dict.iteritems():
+            file_timing = file_timing_list[0]
+            name = file_timing.filename
+            if name in merged_file_dict:
+                counter = count()
+                base_name = name
+                while name in merged_file_dict:
+                    name = base_name + '_%i' % next(counter)
+            global_to_named_dict[global_dict_id] = merged_file_dict[name] = FileTiming(
+                name,
+                file_timing.global_dict,
+                file_timing.profiler, # Note: should be self
+            )
+        # Add all file timings from one module together under its
+        # deduplicated name. This needs to happen after all names
+        # are generated  and all empty file timings are created so
+        # call events cross-references can be remapped.
+        for merged_file_timing in merged_file_dict.itervalues():
+            line_dict = merged_file_timing.line_dict
+            for file_timing in by_global_dict[id(merged_file_timing.global_dict)]:
+                for line, other_code_dict in file_timing.line_dict.iteritems():
+                    code_dict = line_dict[line]
+                    for code, (
+                        other_hits,
+                        other_duration,
+                    ) in other_code_dict.iteritems():
+                        entry = code_dict[code]
+                        entry[0] += other_hits
+                        entry[1] += other_duration
+                call_dict = merged_file_timing.call_dict
+                for key, (
+                    other_callee_file_timing,
+                    other_hits,
+                    other_duration,
+                ) in file_timing.call_dict.iteritems():
+                    try:
+                        entry = call_dict[key]
+                    except KeyError:
+                        entry = call_dict[key] = [
+                            global_to_named_dict[
+                                id(other_callee_file_timing.global_dict)
+                            ],
+                            other_hits,
+                            other_duration,
+                        ]
+                    else:
+                        entry[1] += other_hits
+                        entry[2] += other_duration
+        return merged_file_dict
 
     def getFilenameSet(self):
         """
@@ -889,7 +954,7 @@ class ThreadProfile(Profile):
     trace event (typically a "line" event) before they can notice the
     disabling.
     """
-    __slots__ = ('_local_trace_backup', 'merged_file_dict')
+    __slots__ = ('_local_trace_backup', )
 
     stack = LocalDescriptor(_initStack)
     global_dict = LocalDescriptor(dict)
@@ -897,7 +962,6 @@ class ThreadProfile(Profile):
     def __init__(self, **kw):
         super(ThreadProfile, self).__init__(**kw)
         self._local_trace_backup = self._local_trace
-        self.merged_file_dict = {}
 
     def _enable(self):
         self._local_trace = self._local_trace_backup
@@ -908,72 +972,6 @@ class ThreadProfile(Profile):
         super(ThreadProfile, self)._disable()
         threading.settrace(None)
         self._local_trace = None
-
-    def _mergeFileTiming(self, rebuild=False):
-        merged_file_dict = self.merged_file_dict
-        if merged_file_dict and not rebuild:
-            return merged_file_dict
-        merged_file_dict.clear()
-        # Regroup by module, to find all duplicates from other threads.
-        by_global_dict = defaultdict(list)
-        for file_timing_list in self.file_dict.itervalues():
-            for file_timing in file_timing_list:
-                by_global_dict[
-                    id(file_timing.global_dict)
-                ].append(
-                    file_timing,
-                )
-        # Resolve name conflicts.
-        global_to_named_dict = {}
-        for global_dict_id, file_timing_list in by_global_dict.iteritems():
-            file_timing = file_timing_list[0]
-            name = file_timing.filename
-            if name in merged_file_dict:
-                counter = count()
-                base_name = name
-                while name in merged_file_dict:
-                    name = base_name + '_%i' % next(counter)
-            global_to_named_dict[global_dict_id] = merged_file_dict[name] = FileTiming(
-                name,
-                file_timing.global_dict,
-                file_timing.profiler, # Note: should be self
-            )
-        # Add all file timings from one module together under its
-        # deduplicated name. This needs to happen after all names
-        # are generated  and all empty file timings are created so
-        # call events cross-references can be remapped.
-        for merged_file_timing in merged_file_dict.itervalues():
-            line_dict = merged_file_timing.line_dict
-            for file_timing in by_global_dict[id(merged_file_timing.global_dict)]:
-                for line, other_code_dict in file_timing.line_dict.iteritems():
-                    code_dict = line_dict[line]
-                    for code, (
-                        other_hits,
-                        other_duration,
-                    ) in other_code_dict.iteritems():
-                        entry = code_dict[code]
-                        entry[0] += other_hits
-                        entry[1] += other_duration
-                call_dict = merged_file_timing.call_dict
-                for key, (
-                    other_callee_file_timing,
-                    other_hits,
-                    other_duration,
-                ) in file_timing.call_dict.iteritems():
-                    try:
-                        entry = call_dict[key]
-                    except KeyError:
-                        entry = call_dict[key] = [
-                            global_to_named_dict[
-                                id(other_callee_file_timing.global_dict)
-                            ],
-                            other_hits,
-                            other_duration,
-                        ]
-                    else:
-                        entry[1] += other_hits
-                        entry[2] += other_duration
-        return merged_file_dict
 
 class StatisticProfile(ProfileBase, ProfileRunnerBase):
     """
