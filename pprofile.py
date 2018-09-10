@@ -148,17 +148,19 @@ class EncodeOrReplaceWriter(object):
     underlying file rejects them.
     """
     def __init__(self, out):
-        self._encoding = out.encoding or 'utf-8'
+        self._encoding = out.encoding or 'ascii'
         self._write = out.write
 
     def write(self, data):
         try:
             self._write(data)
         except UnicodeEncodeError:
-            self._write(data.encode(
-                self._encoding,
-                errors='replace',
-            ).decode(self._encoding))
+            self._write(
+                data.encode(
+                    self._encoding,
+                    errors='replace',
+                ).decode(self._encoding),
+            )
 
 def _isCallgrindName(filepath):
     return os.path.basename(filepath).startswith('cachegrind.out.')
