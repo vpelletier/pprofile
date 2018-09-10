@@ -22,6 +22,7 @@ script:
   - pprofile --exclude-syspath --statistic .01 demo/threads.py
   - pprofile --include demo demo/encoding.py
   - LC_CTYPE=ISO-8859-15 pprofile --include demo demo/encoding.py
+  - pprofile --include demo demo/encoding.py > /dev/null
   - pprofile --include demo demo/empty.py -search
   - pprofile --include demo -- demo/empty.py -search
   - pprofile --include demo demo/recurse.py
