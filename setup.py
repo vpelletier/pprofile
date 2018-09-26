@@ -17,15 +17,11 @@
 from os.path import join, dirname
 import sys
 from setuptools import setup
-extra = {}
-if sys.version_info >= (3, ):
-    extra['use_2to3'] = True
 
 description = open(join(dirname(__file__), 'README.rst')).read()
-
 setup(
     name='pprofile',
-    version='1.11.0',
+    version='2.0.0',
     author='Vincent Pelletier',
     author_email='plr.vincent@gmail.com',
     description=next(x for x in description.splitlines() if x.strip()),
@@ -51,5 +47,5 @@ setup(
         ],
     },
     zip_safe=True,
-    **extra
+    use_2to3=sys.version_info >= (3, ),
 )
