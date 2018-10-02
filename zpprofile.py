@@ -333,8 +333,11 @@ class ZopeMixIn(object):
                 )
                 return filename
             if parent_code in PYTHON_EXPR_FUNC_CODE_SET and parent_locals.get('vars') is frame_globals:
+                source = parent_locals['self'].text
+                if not isinstance(source, unicode):
+                    source = source.decode('utf-8')
                 filename = self._rememberFile(
-                    parent_locals['self'].text.decode('utf-8'),
+                    source,
                     'PythonExpr',
                     '.py',
                 )
@@ -386,6 +389,8 @@ class ZopeMixIn(object):
         for name, lines in self.iterSource():
             lines = ''.join(lines)
             if lines:
+                if isinstance(lines, unicode):
+                    lines = lines.encode('utf-8')
                 yield (
                     os.path.normpath(
                         os.path.splitdrive(name)[1]
