@@ -21,7 +21,7 @@ from setuptools import setup
 description = open(join(dirname(__file__), 'README.rst')).read()
 setup(
     name='pprofile',
-    version='2.0.0',
+    version='2.0.1',
     author='Vincent Pelletier',
     author_email='plr.vincent@gmail.com',
     description=next(x for x in description.splitlines() if x.strip()),
