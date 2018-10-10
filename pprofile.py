@@ -148,7 +148,7 @@ class EncodeOrReplaceWriter(object):
     underlying file rejects them.
     """
     def __init__(self, out):
-        self._encoding = out.encoding or 'ascii'
+        self._encoding = getattr(out, 'encoding', None) or 'ascii'
         self._write = out.write
 
     def write(self, data):
