@@ -214,7 +214,7 @@ def disassemble(co, lasti=-1):
             extended_arg = 0
             i = i + 2
             if op == dis.EXTENDED_ARG:
-                extended_arg = oparg * 65536L
+                extended_arg = oparg * 65536
             print(u'%5i' % oparg, end=u' ', file=out)
             if op in dis.hasconst:
                 print(u'(%r)' % co.co_consts[oparg], end=u' ', file=out)
