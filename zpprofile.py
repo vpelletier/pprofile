@@ -283,8 +283,69 @@ class ZopeMixIn(object):
             filename = suggested_name + '_%i' % next(suffix)
         return filename + extension
 
-    def _getFilename(self, frame):
+    @staticmethod
+    def __getEvaluatorFrame(frame):
+        """
+        Get the frame of the code wich is evaluating given frame.
+        For example, if frame is in a Python Script, this returns the frame
+        of corresponding PythonScript.exec call.
+
+        Return a 2-tuple:
+        - evaluator frame
+        - module-unique value
+          Opaque value, unique to this module-ish (global dict when applicable,
+          something else otherwise)
+        """
         parent_frame = frame.f_back
+        frame_globals = frame.f_globals
+        while parent_frame is not None:
+            parent_code = parent_frame.f_code
+            if (
+                parent_code is PythonScript_exec_func_code and
+                parent_frame.f_locals.get('g') is frame_globals
+            ):
+                _, real_frame_globals, _ = parent_frame.f_locals['ft']
+                return parent_frame, real_frame_globals
+            elif (
+                parent_code is DT_UtilEvaleval_func_code and
+                parent_frame.f_locals.get('d') is frame_globals
+            ):
+                return parent_frame, parent_frame.f_locals['code']
+            elif (
+                parent_code in PYTHON_EXPR_FUNC_CODE_SET and
+                parent_frame.f_locals.get('vars') is frame_globals
+            ):
+                return parent_frame, parent_frame.f_locals['self']._code
+            parent_frame = parent_frame.f_back
+        return frame, frame_globals
+
+    def _getFileTiming(self, frame):
+        try:
+            return self.global_dict[id(frame.f_globals)]
+        except KeyError:
+            evaluator_frame, evaluated_module_unique = self.__getEvaluatorFrame(
+                frame,
+            )
+            try:
+                file_timing = self.global_dict[id(evaluated_module_unique)]
+            except KeyError:
+                name = self._getFilename(
+                    frame,
+                    evaluator_frame,
+                    evaluated_module_unique,
+                )
+                self.global_dict[id(evaluated_module_unique)] = file_timing = self.FileTiming(
+                    name,
+                    frame.f_globals,
+                    self,
+                )
+                # file_dict modifications must be thread-safe to not lose measures.
+                # setdefault is atomic, append is atomic.
+                self.file_dict.setdefault(name, []).append(file_timing)
+            self.global_dict[id(frame.f_globals)] = file_timing
+            return file_timing
+
+    def _getFilename(self, frame, evaluator_frame, evaluated_module_unique):
         # Some frame in our stack may contain this frame's source.
         # Or maybe it was in the stak at some point but not anymore
         # (ex: callback).
@@ -295,63 +356,64 @@ class ZopeMixIn(object):
         # unrelated to the code responsible for their existence, further
         # complicating the search. Hopefully it should be rare enough to
         # keep overhead reasonable.
-        frame_globals = frame.f_globals
         # Maybe we already investigated these globals ?
+        result = self.anonymous_module_global_dict.get(id(frame.f_globals))
         # Returns a 2-tuple: filename, frame_globals. frame_globals are
         # included just to prevent their accidental re-use by an unrelated
         # module-ish.
         # We rely on code not willingly reusing globals between modules-ish.
         # This mapping allows finding source when it is not in the stack
         # anymore (callback).
-        result = self.anonymous_module_global_dict.get(id(frame_globals))
         if result is not None:
             return result[0]
-        while parent_frame is not None:
-            parent_code = parent_frame.f_code
-            parent_locals = parent_frame.f_locals
-            if parent_code is PythonScript_exec_func_code and parent_locals.get('g') is frame_globals:
-                python_script = parent_locals['self']
-                filename = self._rememberFile(
-                    python_script.body().decode('utf-8'),
-                    python_script.id,
-                    '.py',
-                )
-                self.anonymous_module_global_dict[id(frame_globals)] = (
+        if evaluator_frame is not frame:
+            # Evaluator found...
+            anonymous_module_global_dict = self.anonymous_module_global_dict
+            result = anonymous_module_global_dict.get(id(evaluated_module_unique))
+            if result is None:
+                # ...for the first time for this evaluated code.
+                evaluator_code = evaluator_frame.f_code
+                evaluator_locals = evaluator_frame.f_locals
+                if evaluator_code is PythonScript_exec_func_code:
+                    python_script = evaluator_frame.f_locals['self']
+                    filename = self._rememberFile(
+                        python_script.body().decode('utf-8'),
+                        python_script.id,
+                        '.py',
+                    )
+                elif evaluator_code is DT_UtilEvaleval_func_code:
+                    filename = self._rememberFile(
+                        evaluator_frame.f_locals['self'].expr.decode('utf-8'),
+                        'DT_Util_Eval',
+                        '.py',
+                    )
+                elif evaluator_code in PYTHON_EXPR_FUNC_CODE_SET:
+                    source = evaluator_frame.f_locals['self'].text
+                    if not isinstance(source, unicode):
+                        source = source.decode('utf-8')
+                    filename = self._rememberFile(
+                        source,
+                        'PythonExpr',
+                        '.py',
+                    )
+                anonymous_module_global_dict[id(evaluated_module_unique)] = (
                     filename,
-                    frame_globals,
+                    evaluated_module_unique,
                 )
-                return filename
-            if parent_code is DT_UtilEvaleval_func_code and parent_locals.get('d') is frame_globals:
-                filename = self._rememberFile(
-                    parent_locals['self'].expr.decode('utf-8'),
-                    'DT_Util_Eval',
-                    '.py',
-                )
-                self.anonymous_module_global_dict[id(frame_globals)] = (
-                    filename,
-                    frame_globals,
-                )
-                return filename
-            if parent_code in PYTHON_EXPR_FUNC_CODE_SET and parent_locals.get('vars') is frame_globals:
-                source = parent_locals['self'].text
-                if not isinstance(source, unicode):
-                    source = source.decode('utf-8')
-                filename = self._rememberFile(
-                    source,
-                    'PythonExpr',
-                    '.py',
-                )
-                self.anonymous_module_global_dict[id(frame_globals)] = (
-                    filename,
-                    frame_globals,
-                )
-                return filename
-            parent_frame = parent_frame.f_back
+            else:
+                # ...and aleady known.
+                filename = result[0]
+            frame_globals = frame.f_globals
+            anonymous_module_global_dict[id(frame_globals)] = (
+                filename,
+                frame_globals,
+            )
+            return filename
         # Shared.DC.Scripts preamble is directly called by _bindAndExec.
         # Put after stack recursion because, although simpler, this code
         # will rarely match, while many Python Scripts, DT and Python
         # Expressions are expected and often found at the first iteration.
-        if parent_frame is not None and parent_frame.f_code is SharedDCScriptsBindings_bindAndExec_func_code:
+        if getattr(frame.f_back, 'f_code', None) is SharedDCScriptsBindings_bindAndExec_func_code:
             return self._rememberFile(
                 u'# This is an auto-generated preamble executed by '
                 u'Shared.DC.Scripts.Bindings before "actual" code.\n' +
@@ -359,11 +421,11 @@ class ZopeMixIn(object):
                 'preamble',
                 '.py.bytecode',
             )
-        # The answer was not in the stack. Maybe it filename is actually fine ?
+        # The answer was not in the stack. Maybe its filename is actually fine ?
         # This is tested late in case linecache was patched
         super_self = super(ZopeMixIn, self)
         filename = super_self._getFilename(frame)
-        if super_self._getline(filename, 1, frame_globals):
+        if super_self._getline(filename, 1, frame.f_globals):
             return filename
         # Could not find source, provide disassembled bytecode as last resort.
         return self._rememberFile(
