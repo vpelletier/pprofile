@@ -390,7 +390,7 @@ class ProfileBase(object):
         except KeyError:
             f_globals = frame.f_globals
             name = self._getFilename(frame)
-            self.global_dict[id(frame.f_globals)] = file_timing = self.FileTiming(
+            self.global_dict[id(f_globals)] = file_timing = self.FileTiming(
                 name,
                 f_globals,
                 self,
