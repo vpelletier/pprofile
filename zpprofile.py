@@ -322,30 +322,30 @@ class ZopeMixIn(object):
                 # Unknown module, guess its name.
                 if evaluator_frame is frame:
                     # No evaluator found.
-                    # Shared.DC.Scripts preamble is directly called by
-                    # _bindAndExec.
-                    if getattr(
-                        frame.f_back,
-                        'f_code',
-                        None,
-                    ) is SharedDCScriptsBindings_bindAndExec_func_code:
-                        name = self._rememberFile(
-                            u'# This is an auto-generated preamble executed '
-                            u'by Shared.DC.Scripts.Bindings before "actual" '
-                            u'code.\n' +
-                            disassemble(frame.f_code),
-                            'preamble',
-                            '.py.bytecode',
-                        )
-                    else:
-                        # The answer was not in the stack.
-                        # Maybe its name is actually fine ?
-                        name = self._getFilename(frame)
-                        if not super(ZopeMixIn, self)._getline(
-                            name,
-                            1,
-                            frame.f_globals,
-                        ):
+                    # The answer was not in the stack.
+                    # Maybe its name is actually fine ?
+                    name = self._getFilename(frame)
+                    if not super(ZopeMixIn, self)._getline(
+                        name,
+                        1,
+                        frame.f_globals,
+                    ):
+                        # Shared.DC.Scripts preamble is directly called by
+                        # _bindAndExec.
+                        if getattr(
+                            frame.f_back,
+                            'f_code',
+                            None,
+                        ) is SharedDCScriptsBindings_bindAndExec_func_code:
+                            name = self._rememberFile(
+                                u'# This is an auto-generated preamble executed '
+                                u'by Shared.DC.Scripts.Bindings before "actual" '
+                                u'code.\n' +
+                                disassemble(frame.f_code),
+                                'preamble',
+                                '.py.bytecode',
+                            )
+                        else:
                             # Could not find source, provide disassembled
                             # bytecode as last resort.
                             name = self._rememberFile(
