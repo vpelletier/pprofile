@@ -17,11 +17,12 @@
 from os.path import join, dirname
 import sys
 from setuptools import setup
+import versioneer
 
 description = open(join(dirname(__file__), 'README.rst')).read()
 setup(
     name='pprofile',
-    version='2.0.2',
+    version=versioneer.get_version(),
     author='Vincent Pelletier',
     author_email='plr.vincent@gmail.com',
     description=next(x for x in description.splitlines() if x.strip()),
@@ -48,4 +49,5 @@ setup(
     },
     zip_safe=True,
     use_2to3=sys.version_info >= (3, ),
+    cmdclass=versioneer.get_cmdclass(),
 )
