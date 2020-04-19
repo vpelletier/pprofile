@@ -353,15 +353,6 @@ def _initStack():
     now = time()
     return (deque([[now, 0, None, now, 0]]), defaultdict(deque))
 
-def _verboseProfileDecorator(self):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(frame, event, arg):
-            self._traceEvent(frame, event)
-            return func(frame, event, arg)
-        return wrapper
-    return decorator
-
 class ProfileBase(object):
     """
     Methods common to deterministic and statistic profiling.
@@ -822,10 +813,14 @@ class Profile(ProfileBase, ProfileRunnerBase):
     def __init__(self, verbose=False):
         super(Profile, self).__init__()
         if verbose:
-            self._global_trace = _verboseProfileDecorator(self)(
-                self._real_global_trace)
-            self._local_trace = _verboseProfileDecorator(self)(
-                self._real_local_trace)
+            def decorator(func):
+                @wraps(func)
+                def wrapper(frame, event, arg, _traceEvent=self._traceEvent):
+                    _traceEvent(frame, event)
+                    return func(frame, event, arg)
+                return wrapper
+            self._global_trace = decorator(self._real_global_trace)
+            self._local_trace = decorator(self._real_local_trace)
         else:
             self._global_trace = self._real_global_trace
             self._local_trace = self._real_local_trace
