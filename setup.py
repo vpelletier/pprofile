@@ -41,7 +41,8 @@ setup(
         'Programming Language :: Python :: Implementation :: IronPython',
         'Topic :: Software Development',
     ],
-    py_modules=['pprofile', 'zpprofile'],
+    packages=['pprofile'],
+    py_modules=['zpprofile'],
     entry_points={
         'console_scripts': [
             'pprofile=pprofile:main',
