@@ -857,7 +857,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         """
         self.total_time += time() - self.enabled_start
         self.enabled_start = None
-        del self.stack
+        self.stack = None
 
     def disable(self):
         """
@@ -900,7 +900,10 @@ class Profile(ProfileBase, ProfileRunnerBase):
         if local_trace is not None:
             event_time = time()
             callee_entry = [event_time, 0, frame.f_lineno, event_time, 0]
-            stack, callee_dict = self.stack
+            try:
+                stack, callee_dict = self.stack
+            except TypeError:
+                return None
             try:
                 caller_entry = stack[-1]
             except IndexError:
@@ -916,7 +919,10 @@ class Profile(ProfileBase, ProfileRunnerBase):
     def _real_local_trace(self, frame, event, arg):
         if event == 'line' or event == 'return':
             event_time = time()
-            stack, callee_dict = self.stack
+            try:
+                stack, callee_dict = self.stack
+            except TypeError:
+                return None
             try:
                 stack_entry = stack[-1]
             except IndexError:
