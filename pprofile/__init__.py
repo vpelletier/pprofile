@@ -767,6 +767,7 @@ class ProfileRunnerBase(object):
         code_module = type(original_main)('__main__', docstring)
         ctx_globals = code_module.__dict__
         ctx_globals.update(globals)
+        ctx_globals['__builtins__'] = __builtins__
         ctx_globals['__file__'] = fd_name
         ctx_globals['__name__'] = '__main__'
         ctx_globals['__package__'] = None
