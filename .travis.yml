@@ -32,3 +32,4 @@ script:
   - pprofile --include demo demo/recurse4.py
   - pprofile --include demo demo/twocalls.py
   - pprofile --include demo demo/twocalls2.py
+  - pprofile --include demo demo/the_main.py

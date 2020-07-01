@@ -757,15 +757,26 @@ class ProfileRunnerBase(object):
             code = compile(fd.read(), fd_name, 'exec', flags=compile_flags,
                 dont_inherit=dont_inherit)
         original_sys_argv = list(sys.argv)
-        ctx_globals = globals.copy()
+        for name, docstring in zip(code.co_names, code.co_consts):
+            if name == '__doc__':
+                break
+        else:
+            docstring = None
+        original_main = sys.modules.get('__main__')
+        # XXX: is there a better way to get hold of module type ?
+        code_module = type(original_main)('__main__', docstring)
+        ctx_globals = code_module.__dict__
+        ctx_globals.update(globals)
         ctx_globals['__file__'] = fd_name
         ctx_globals['__name__'] = '__main__'
         ctx_globals['__package__'] = None
+        sys.modules['__main__'] = code_module
         try:
             sys.argv[:] = argv
             return self.runctx(code, ctx_globals, None)
         finally:
             sys.argv[:] = original_sys_argv
+            sys.modules['__main__'] = original_main
 
     def runpath(self, path, argv):
         original_sys_path = list(sys.path)
