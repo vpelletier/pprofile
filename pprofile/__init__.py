@@ -1011,10 +1011,6 @@ class StatisticProfile(ProfileBase, ProfileRunnerBase):
     Instead, it must be provided with call stacks (as returned by
     sys._getframe() or sys._current_frames()).
     """
-    def __init__(self):
-        super(StatisticProfile, self).__init__()
-        self.total_time = 1
-
     def sample(self, frame):
         getFileTiming = self._getFileTiming
         called_timing = getFileTiming(frame)
