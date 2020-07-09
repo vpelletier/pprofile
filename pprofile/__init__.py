@@ -41,6 +41,10 @@ Statistic profiling:
 """
 from __future__ import print_function, division
 from collections import defaultdict, deque
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+from email.encoders import encode_quopri
 from functools import partial, wraps
 # Note: use time, not clock.
 # Clock, at least on linux, ignores time not spent executing code
@@ -507,6 +511,103 @@ class ProfileBase(object):
                     key=lambda x: file_dict[x].getSortKey()
                 )
         return filename
+
+    def _iterOutFiles(self, filename=None, commandline=None):
+        """
+        Yields path, data, mimetype for each file involved on or produced by
+        profiling.
+        """
+        out = io.StringIO()
+        self.callgrind(
+            out,
+            filename=filename,
+            commandline=commandline,
+            relative_path=True,
+        )
+        yield (
+            'cachegrind.out.pprofile',
+            out.getvalue(),
+            'application/x-kcachegrind',
+        )
+        for name in self._getFileNameList(filename, may_sort=False):
+            lines = ''.join(self._iterRawFile(name))
+            if lines:
+                if isinstance(lines, unicode):
+                    lines = lines.encode('utf-8')
+                yield (
+                    _relpath(name),
+                    lines,
+                    'text/x-python',
+                )
+
+    def getCallgrindMIME(self, out, filename=None, commandline=None, relative_path=True):
+        """
+        Write to "out" a mime-multipart representation of:
+        - callgrind profiling statistics (cachegrind.out.pprofile)
+        - all involved python code, including Python Scripts without hierarchy
+          (the rest)
+        and return its mimetype.
+        To unpack resulting file, see "unpack a MIME message" in
+          http://docs.python.org/2/library/email-examples.html
+        Or get demultipart from
+          https://pypi.python.org/pypi/demultipart
+
+        relative_path:
+          Ignored.
+        """
+        _ = relative_path
+        result = MIMEMultipart()
+        base_type_dict = {
+            'application': MIMEApplication,
+            'text': MIMEText,
+        }
+        encoder_dict = {
+            'application/x-kcachegrind': encode_quopri,
+            'text/x-python': 'utf-8',
+            'text/plain': 'utf-8',
+        }
+        for path, data, mimetype in self._iterOutFiles(
+            filename=filename,
+            commandline=commandline,
+        ):
+            base_type, sub_type = mimetype.split('/')
+            chunk = base_type_dict[base_type](
+                data,
+                sub_type,
+                encoder_dict.get(mimetype),
+            )
+            chunk.add_header(
+                'Content-Disposition',
+                'attachment',
+                filename=path,
+            )
+            result.attach(chunk)
+        out.write(result.as_string())
+        return result['content-type']
+
+    def getCallgrindZip(self, out=None, filename=None, commandline=None, relative_path=True):
+        """
+        Write to "out" a serialised zip archive containing:
+        - callgrind profiling statistics (cachegrind.out.pprofile)
+        - all involved python code, including Python Scripts without hierarchy
+          (the rest)
+        as a byte string and the "application/zip" mimetype.
+
+        relative_path:
+          Ignored.
+        """
+        _ = relative_path
+        with zipfile.ZipFile(
+            out,
+            mode='w',
+            compression=zipfile.ZIP_DEFLATED,
+        ) as outfile:
+            for path, data, _ in self._iterOutFiles(
+                filename=filename,
+                commandline=commandline,
+            ):
+                outfile.writestr(path, data)
+        return 'application/zip'
 
     def callgrind(self, out, filename=None, commandline=None, relative_path=False):
         """
@@ -1232,6 +1333,7 @@ def _main(argv, stdin=None):
     format_dict = {
         'text': 'annotate',
         'callgrind': 'callgrind',
+        'callgrindzip': 'getCallgrindZip',
     }
 
     parser = argparse.ArgumentParser(argv[0])
@@ -1325,7 +1427,9 @@ def _main(argv, stdin=None):
         }
         runner_method_id = 'runmodule'
     if options.format is None:
-        if _isCallgrindName(options.out):
+        if os.path.splitext(options.out)[1] == os.path.extsep + 'zip':
+            options.format = 'callgrindzip'
+        elif _isCallgrindName(options.out):
             options.format = 'callgrind'
         else:
             options.format = 'text'
@@ -1350,7 +1454,10 @@ def _main(argv, stdin=None):
             out = EncodeOrReplaceWriter(sys.stdout)
             close = lambda: None
         else:
-            out = io.open(options.out, 'w', errors='replace')
+            if options.format == 'callgrindzip':
+                out = io.open(options.out, 'wb')
+            else:
+                out = io.open(options.out, 'w', errors='replace')
             close = out.close
         if options.exclude:
             exclusion_search_list = [

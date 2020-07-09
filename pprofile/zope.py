@@ -79,18 +79,12 @@ Example statistic usage (to profile other running threads):
 """
 from __future__ import print_function
 import dis
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-from email.encoders import encode_quopri
 import functools
 import gc
 from io import StringIO, BytesIO
 from importlib import import_module
 import itertools
-import os
 from collections import defaultdict
-import zipfile
 import pprofile
 
 def getFuncCodeOrNone(module, attribute_path):
@@ -127,7 +121,6 @@ else:
     functools.update_wrapper(unrestrictedTraverse_spy, orig_unrestrictedTraverse)
     OFS.Traversable.Traversable.unrestrictedTraverse = unrestrictedTraverse_spy
 
-_ALLSEP = os.sep + (os.altsep or '')
 PYTHON_EXPR_FUNC_CODE_SET = (ZRPythonExpr__call__func_code, PythonExpr__call__func_code)
 
 class ZopeFileTiming(pprofile.FileTiming):
@@ -409,25 +402,8 @@ class ZopeMixIn(object):
         Yields path, data, mimetype for each file involved on or produced by
         profiling.
         """
-        out = StringIO()
-        self.callgrind(out, relative_path=True)
-        yield (
-            'cachegrind.out.pprofile',
-            out.getvalue(),
-            'application/x-kcachegrind',
-        )
-        for name, lines in self.iterSource():
-            lines = ''.join(lines)
-            if lines:
-                if isinstance(lines, unicode):
-                    lines = lines.encode('utf-8')
-                yield (
-                    os.path.normpath(
-                        os.path.splitdrive(name)[1]
-                    ).lstrip(_ALLSEP),
-                    lines,
-                    'text/x-python',
-                )
+        for entry in super(ZopeMixIn, self)._iterOutFiles():
+            yield entry
         sql_name_template = 'query_%%0%ii-%%i_hits_%%6fs.sql' % len(
             str(len(self.sql_dict)),
         )
@@ -485,7 +461,7 @@ class ZopeMixIn(object):
                 'text/plain',
             )
 
-    def asMIMEString(self):
+    def getCallgrindMIME(self):
         """
         Return a mime-multipart representation of:
         - callgrind profiling statistics (cachegrind.out.pprofile)
@@ -495,37 +471,17 @@ class ZopeMixIn(object):
           (unrestrictedTraverse_pathlist.txt)
         - all involved python code, including Python Scripts without hierarchy
           (the rest)
+        and the mimetype of this string.
         To unpack resulting file, see "unpack a MIME message" in
           http://docs.python.org/2/library/email-examples.html
         Or get demultipart from
           https://pypi.python.org/pypi/demultipart
         """
-        result = MIMEMultipart()
-        base_type_dict = {
-            'application': MIMEApplication,
-            'text': MIMEText,
-        }
-        encoder_dict = {
-            'application/x-kcachegrind': encode_quopri,
-            'text/x-python': 'utf-8',
-            'text/plain': 'utf-8',
-        }
-        for path, data, mimetype in self._iterOutFiles():
-            base_type, sub_type = mimetype.split('/')
-            chunk = base_type_dict[base_type](
-                data,
-                sub_type,
-                encoder_dict.get(mimetype),
-            )
-            chunk.add_header(
-                'Content-Disposition',
-                'attachment',
-                filename=path,
-            )
-            result.attach(chunk)
-        return result.as_string(), result['content-type']
+        out = BytesIO()
+        mimetype = super(ZopeMixIn, self).getCallgrindMIME(out)
+        return out.getvalue(), mimetype
 
-    def asZip(self):
+    def getCallgrindZip(self):
         """
         Return a serialised zip archive containing:
         - callgrind profiling statistics (cachegrind.out.pprofile)
@@ -535,16 +491,15 @@ class ZopeMixIn(object):
           (unrestrictedTraverse_pathlist.txt)
         - all involved python code, including Python Scripts without hierarchy
           (the rest)
+        and the "application/zip" mimetype.
         """
         out = BytesIO()
-        with zipfile.ZipFile(
-            out,
-            mode='w',
-            compression=zipfile.ZIP_DEFLATED,
-        ) as outfile:
-            for path, data, _ in self._iterOutFiles():
-                outfile.writestr(path, data)
-        return out.getvalue(), 'application/zip'
+        mimetype = super(ZopeMixIn, self).getCallgrindZip(out)
+        return out.getvalue(), mimetype
+
+    # BBB
+    asMIMEString = getCallgrindMIME
+    asZip = getCallgrindZip
 
 class ZopeProfiler(ZopeMixIn, pprofile.Profile):
     __slots__ = ZopeMixIn.virtual__slots__

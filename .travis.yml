@@ -34,3 +34,5 @@ script:
   - pprofile --include demo demo/twocalls2.py
   - pprofile --include demo demo/the_main.py
   - pprofile --include demo demo/module_globals.py
+  - pprofile --format callgrindzip --out test_threads.zip demo/threads.py && unzip -l test_threads.zip
+  - pprofile --out test_threads.zip demo/threads.py && unzip -l test_threads.zip
