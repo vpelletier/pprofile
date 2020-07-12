@@ -519,6 +519,11 @@ class ProfileBase(object):
         Time unit: microsecond (1e-6 second).
         out (file-ish opened for writing)
             Destination of callgrind profiling data.
+            Encoding should be chosen to be able to represent characters in
+            filesystem path and (when provided) commandline.
+            Setting an encoding error handler other than "raise" (default)
+            will likely result in profiling results being unable to locate
+            code for annotation.
         filename (str, collection of str)
             If provided, dump stats for given source file(s) only.
             By default, list for all known files.
@@ -626,6 +631,9 @@ class ProfileBase(object):
         Time unit: second.
         out (file-ish opened for writing)
             Destination of annotated sources.
+            Encoding and encoding error handling should be chosen so as to be
+            able to represent all characters present in source code (ex: utf-8,
+            or ascii with "replace" error handler).
         filename (str, collection of str)
             If provided, dump stats for given source file(s) only.
             If unordered collection, it will get sorted by decreasing total
