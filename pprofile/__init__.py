@@ -1329,7 +1329,9 @@ def _relpath(name):
     """
     return os.path.normpath(os.path.splitdrive(name)[1]).lstrip(_allsep)
 
-def main(argv, stdin=None):
+def main(argv=None, stdin=None):
+    if argv is None:
+        argv = sys.argv
     format_dict = {
         'text': 'annotate',
         'callgrind': 'callgrind',
