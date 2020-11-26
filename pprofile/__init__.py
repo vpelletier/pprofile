@@ -1329,7 +1329,9 @@ def _relpath(name):
     """
     return os.path.normpath(os.path.splitdrive(name)[1]).lstrip(_allsep)
 
-def _main(argv, stdin=None):
+def main(argv=None, stdin=None):
+    if argv is None:
+        argv = sys.argv
     format_dict = {
         'text': 'annotate',
         'callgrind': 'callgrind',
@@ -1516,7 +1518,7 @@ def pprofile(line, cell=None):
     if cell is None:
         # TODO: detect and use arguments (statistical profiling, ...) ?
         return run(line)
-    return _main(
+    return main(
         ['%%pprofile', '-m', '-'] + shlex.split(line),
         io.StringIO(cell),
     )
@@ -1526,12 +1528,6 @@ except Exception:
     # ipython can be imported, but may not be currently running.
     pass
 del pprofile
-
-def main():
-    _main(sys.argv)
-
-if __name__ == '__main__':
-    main()
 
 from ._version import get_versions
 __version__ = get_versions()['version']
