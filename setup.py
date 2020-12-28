@@ -49,6 +49,6 @@ setup(
         ],
     },
     zip_safe=True,
-    use_2to3=sys.version_info >= (3, ),
+    use_2to3=True,
     cmdclass=versioneer.get_cmdclass(),
 )
