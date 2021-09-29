@@ -87,12 +87,15 @@ import itertools
 from collections import defaultdict
 import pprofile
 
+if sys.version_info >= (3, ):
+    unicode = str
+
 def getFuncCodeOrNone(module, attribute_path):
     try:
         value = import_module(module)
         for attribute in attribute_path:
             value = getattr(value, attribute)
-        value = value.func_code
+        value = value.__code__
     except (ImportError, AttributeError):
         print('Could not reach func_code of module %r, attribute path %r' % (module, attribute_path))
         return None
@@ -111,7 +114,7 @@ PythonScript_exec_func_code = getFuncCodeOrNone('Products.PythonScripts.PythonSc
 # it is still possible to inspect using such controlled intermediate function.
 def unrestrictedTraverse_spy(self, path, *args, **kw):
     return orig_unrestrictedTraverse(self, path, *args, **kw)
-unrestrictedTraverse_spy_func_code = unrestrictedTraverse_spy.func_code
+unrestrictedTraverse_spy_func_code = unrestrictedTraverse_spy.__code__
 try:
     import OFS.Traversable
     orig_unrestrictedTraverse = OFS.Traversable.Traversable.unrestrictedTraverse
@@ -409,7 +412,7 @@ class ZopeMixIn(object):
         )
         for index, (query, time_list) in enumerate(
             sorted(
-                self.sql_dict.iteritems(),
+                self.sql_dict.items(),
                 key=lambda x: (sum(x[1]), len(x[1])),
                 reverse=True,
             ),
@@ -430,7 +433,7 @@ class ZopeMixIn(object):
                     (
                         '%s (%fs)\n' % (
                             db_name,
-                            sum(sum(x) for x in oid_dict.itervalues()),
+                            sum(sum(x) for x in oid_dict.values()),
                         )
                     ) + '\n'.join(
                         '%s (%i): %s' % (
@@ -438,9 +441,9 @@ class ZopeMixIn(object):
                             len(time_list),
                             ', '.join('%fs' % x for x in time_list),
                         )
-                        for oid, time_list in oid_dict.iteritems()
+                        for oid, time_list in oid_dict.items()
                     )
-                    for db_name, oid_dict in self.zodb_dict.iteritems()
+                    for db_name, oid_dict in self.zodb_dict.items()
                 ),
                 'text/plain',
             )
@@ -452,7 +455,7 @@ class ZopeMixIn(object):
                     sorted(
                         (
                             (context, path, len(duration_list), sum(duration_list))
-                            for (context, path), duration_list in self.traverse_dict.iteritems()
+                            for (context, path), duration_list in self.traverse_dict.items()
                         ),
                         key=lambda x: x[3],
                         reverse=True,

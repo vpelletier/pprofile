@@ -39,7 +39,7 @@ Statistic profiling:
 >>>     # Code to profile
 >>> prof.print_stats()
 """
-from __future__ import print_function, division
+from __future__ import print_function, division, absolute_import
 from collections import defaultdict, deque
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -96,10 +96,12 @@ class BaseLineIterator(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         lineno = self._lineno
         self._lineno += 1
         return lineno, self._getline(self._filename, lineno, self._global_dict)
+
+    next = __next__ # BBB 2.7
 
 if sys.version_info < (3, ):
     import codecs
@@ -131,14 +133,23 @@ if sys.version_info < (3, ):
                         self._encoding = match.group(1)
             # else, first line is unicode.
 
-        def next(self):
-            lineno, line = super(LineIterator, self).next()
+        def __next__(self):
+            lineno, line = super(LineIterator, self).__next__()
             if self._encoding:
                 line = line.decode(self._encoding, errors='replace')
             return lineno, line
+
+        next = __next__ # BBB
+
+    def iterframes(current_frames):
+        return current_frames().iteritems()
 else:
     # getline returns unicode objects, nothing to do
     LineIterator = BaseLineIterator
+    unicode = basestring = str
+
+    def iterframes(current_frames):
+        return current_frames().items()
 
 if platform.system() == 'Windows':
     quoteCommandline = windows_list2cmdline
@@ -235,7 +246,7 @@ class _FileTiming(object):
 
     def getHitStatsFor(self, line):
         total_hits = total_duration = 0
-        for hits, duration in self.line_dict.get(line, {}).itervalues():
+        for hits, duration in self.line_dict.get(line, {}).values():
             total_hits += hits
             total_duration += duration
         return total_hits, total_duration
@@ -247,13 +258,13 @@ class _FileTiming(object):
         )
 
     def iterHits(self):
-        for line, code_dict in self.line_dict.iteritems():
-            for code, (hits, duration) in code_dict.iteritems():
+        for line, code_dict in self.line_dict.items():
+            for code, (hits, duration) in code_dict.items():
                 yield line, code, hits, duration
 
     def iterCalls(self):
         for (code, line, callee), (callee_file_timing, hit, duration) in \
-                self.call_dict.iteritems():
+                self.call_dict.items():
             yield (
                 line,
                 code,
@@ -274,22 +285,22 @@ class _FileTiming(object):
     def getTotalTime(self):
         return sum(
             y[1]
-            for x in self.line_dict.itervalues()
-            for y in x.itervalues()
+            for x in self.line_dict.values()
+            for y in x.values()
         )
 
     def getTotalHitCount(self):
         return sum(
             y[0]
-            for x in self.line_dict.itervalues()
-            for y in x.itervalues()
+            for x in self.line_dict.values()
+            for y in x.values()
         )
 
     def getSortKey(self):
         # total duration first, then total hit count for statistical profiling
         result = [0, 0]
-        for entry in self.line_dict.itervalues():
-            for hit, duration in entry.itervalues():
+        for entry in self.line_dict.values():
+            for hit, duration in entry.values():
                 result[0] += duration
                 result[1] += hit
         return result
@@ -416,7 +427,7 @@ class ProfileBase(object):
         merged_file_dict.clear()
         # Regroup by module, to find all duplicates from other threads.
         by_global_dict = defaultdict(list)
-        for file_timing_list in self.file_dict.itervalues():
+        for file_timing_list in self.file_dict.values():
             for file_timing in file_timing_list:
                 by_global_dict[
                     id(file_timing.global_dict)
@@ -425,7 +436,7 @@ class ProfileBase(object):
                 )
         # Resolve name conflicts.
         global_to_named_dict = {}
-        for global_dict_id, file_timing_list in by_global_dict.iteritems():
+        for global_dict_id, file_timing_list in by_global_dict.items():
             file_timing = file_timing_list[0]
             name = file_timing.filename
             if name in merged_file_dict:
@@ -442,15 +453,15 @@ class ProfileBase(object):
         # deduplicated name. This needs to happen after all names
         # are generated  and all empty file timings are created so
         # call events cross-references can be remapped.
-        for merged_file_timing in merged_file_dict.itervalues():
+        for merged_file_timing in merged_file_dict.values():
             line_dict = merged_file_timing.line_dict
             for file_timing in by_global_dict[id(merged_file_timing.global_dict)]:
-                for line, other_code_dict in file_timing.line_dict.iteritems():
+                for line, other_code_dict in file_timing.line_dict.items():
                     code_dict = line_dict[line]
                     for code, (
                         other_hits,
                         other_duration,
-                    ) in other_code_dict.iteritems():
+                    ) in other_code_dict.items():
                         entry = code_dict[code]
                         entry[0] += other_hits
                         entry[1] += other_duration
@@ -459,7 +470,7 @@ class ProfileBase(object):
                     other_callee_file_timing,
                     other_hits,
                     other_duration,
-                ) in file_timing.call_dict.iteritems():
+                ) in file_timing.call_dict.items():
                     try:
                         entry = call_dict[key]
                     except KeyError:
@@ -704,9 +715,9 @@ class ProfileBase(object):
                 append(u'cfn=' + getCodeName(callee_file, callee))
                 append(u'calls=%i %i' % (call_hits, callee.co_firstlineno))
                 append(u'%i %i %i %i' % (lineno, call_hits, call_ticks, call_ticks // call_hits))
-            for func_name, line_dict in func_dict.iteritems():
+            for func_name, line_dict in func_dict.items():
                 print(u'fn=%s' % func_name, file=out)
-                for lineno, (func_hit_list, func_call_list) in sorted(line_dict.iteritems()):
+                for lineno, (func_hit_list, func_call_list) in sorted(line_dict.items()):
                     if func_hit_list:
                         # Multiple function objects may "reside" on the same
                         # line of the same file (same global dict).
@@ -1080,7 +1091,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
     # profile/cProfile-like API
     def run(self, cmd):
         """Similar to profile.Profile.run ."""
-        import __main__
+        from . import __main__
         dikt = __main__.__dict__
         return self.runctx(cmd, dikt, dikt)
 
@@ -1248,7 +1259,7 @@ class StatisticThread(threading.Thread, ProfileRunnerBase):
         stop_event = self._stop_event
         wait = partial(stop_event.wait, self._period)
         while self._can_run:
-            for ident, frame in current_frames().iteritems():
+            for ident, frame in iterframes(current_frames=current_frames):
                 if test(ident):
                     sample(frame)
             frame = None
@@ -1410,7 +1421,7 @@ def main(argv=None, stdin=None):
         if options.script is not None:
             args.append(options.script)
         args.extend(options.argv)
-        import __main__
+        from . import __main__
         runner_method_kw = {
             'fd': stdin,
             'argv': args,
