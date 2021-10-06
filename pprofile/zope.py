@@ -397,12 +397,12 @@ class ZopeMixIn(object):
             self.keep_alive.append(frame_globals)
             return file_timing
 
-    def _iterOutFiles(self):
+    def _iterOutFiles(self, *args, **kw):
         """
         Yields path, data, mimetype for each file involved on or produced by
         profiling.
         """
-        for entry in super(ZopeMixIn, self)._iterOutFiles():
+        for entry in super(ZopeMixIn, self)._iterOutFiles(*args, **kw):
             yield entry
         sql_name_template = 'query_%%0%ii-%%i_hits_%%6fs.sql' % len(
             str(len(self.sql_dict)),
