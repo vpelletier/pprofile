@@ -1011,7 +1011,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
 
     def _traceEvent(self, frame, event):
         f_code = frame.f_code
-        lineno = frame.f_lineno
+        lineno = frame.f_lineno or 0
         print('%10.6f%s%s %s:%s %s+%s' % (
             time() - self.enabled_start,
             ' ' * len(self.stack[0]),
@@ -1026,7 +1026,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
         local_trace = self._local_trace
         if local_trace is not None:
             event_time = time()
-            callee_entry = [event_time, 0, frame.f_lineno, event_time, 0]
+            callee_entry = [event_time, 0, frame.f_lineno or 0, event_time, 0]
             try:
                 stack, callee_dict = self.stack
             except TypeError:
@@ -1062,7 +1062,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
                 event_time - line_time + line_duration)
             if event == 'line':
                 # Start a new line
-                stack_entry[2] = frame.f_lineno
+                stack_entry[2] = frame.f_lineno or 0
                 stack_entry[3] = event_time
                 stack_entry[4] = 0
             else:
@@ -1081,7 +1081,7 @@ class Profile(ProfileBase, ProfileRunnerBase):
                     # call duration from it.
                     callee_entry_list[-1][1] += call_duration
                 self._getFileTiming(caller_frame).call(
-                    caller_code, caller_frame.f_lineno,
+                    caller_code, caller_frame.f_lineno or 0,
                     file_timing,
                     callee_code, call_duration - frame_discount,
                     frame,
@@ -1135,14 +1135,14 @@ class StatisticProfile(ProfileBase, ProfileRunnerBase):
         getFileTiming = self._getFileTiming
         called_timing = getFileTiming(frame)
         called_code = frame.f_code
-        called_timing.hit(called_code, frame.f_lineno, 0)
+        called_timing.hit(called_code, frame.f_lineno or 0, 0)
         while True:
             caller = frame.f_back
             if caller is None:
                 break
             caller_timing = getFileTiming(caller)
             caller_code = caller.f_code
-            caller_timing.call(caller_code, caller.f_lineno,
+            caller_timing.call(caller_code, caller.f_lineno or 0,
                 called_timing, called_code, 0, frame)
             called_timing = caller_timing
             frame = caller
