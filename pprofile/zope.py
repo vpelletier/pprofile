@@ -85,6 +85,7 @@ from io import StringIO, BytesIO
 from importlib import import_module
 import itertools
 from collections import defaultdict
+import sys
 import pprofile
 
 if sys.version_info >= (3, ):
