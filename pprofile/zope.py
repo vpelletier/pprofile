@@ -103,7 +103,7 @@ def getFuncCodeOrNone(module, attribute_path):
     return value
 
 DB_query_func_code = getFuncCodeOrNone('Products.ZMySQLDA.db', ('DB', '_query'))
-ZODB_setstate_func_code = getFuncCodeOrNone('ZODB.Connection', ('Connection', '_setstate'))
+ZODB_setstate_func_code = getFuncCodeOrNone('ZODB.Connection', ('Connection', 'setstate'))
 PythonExpr__call__func_code = getFuncCodeOrNone('zope.tales.pythonexpr', ('PythonExpr', '__call__'))
 ZRPythonExpr__call__func_code = getFuncCodeOrNone('Products.PageTemplates.ZRPythonExpr', ('PythonExpr', '__call__'))
 DT_UtilEvaleval_func_code = getFuncCodeOrNone('DocumentTemplate.DT_Util', ('Eval', 'eval'))
@@ -288,9 +288,17 @@ class ZopeMixIn(object):
             evaluator_frame = frame.f_back
             while evaluator_frame is not None:
                 evaluator_code = evaluator_frame.f_code
+                if evaluator_code is PythonScript_exec_func_code:
+                    if evaluator_frame.f_locals.get('safe_globals') is frame_globals:
+                        evaluated_module_unique = evaluator_frame.f_locals['function_code']
+                    elif evaluator_frame.f_locals.get('g') is frame_globals:
+                        evaluated_module_unique = evaluator_frame.f_locals['fcode']
+                    break
                 if (
-                    evaluator_code is PythonScript_exec_func_code and
-                    evaluator_frame.f_locals.get('g') is frame_globals
+                    evaluator_code is PythonScript_exec_func_code and (
+                      evaluator_frame.f_locals.get('safe_globals') is frame_globals or
+                      evaluator_frame.f_locals.get('g') is frame_globals
+                    )
                 ):
                     evaluated_module_unique = evaluator_frame.f_locals['fcode']
                     break
