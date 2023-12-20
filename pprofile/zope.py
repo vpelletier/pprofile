@@ -291,9 +291,10 @@ class ZopeMixIn(object):
                 if evaluator_code is PythonScript_exec_func_code:
                     if evaluator_frame.f_locals.get('safe_globals') is frame_globals:
                         evaluated_module_unique = evaluator_frame.f_locals['function_code']
+                        break
                     elif evaluator_frame.f_locals.get('g') is frame_globals:
                         evaluated_module_unique = evaluator_frame.f_locals['fcode']
-                    break
+                        break
                 if (
                     evaluator_code is PythonScript_exec_func_code and (
                       evaluator_frame.f_locals.get('safe_globals') is frame_globals or
