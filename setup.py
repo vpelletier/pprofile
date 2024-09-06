@@ -27,6 +27,7 @@ setup(
     author_email='plr.vincent@gmail.com',
     description=next(x for x in description.splitlines() if x.strip()),
     long_description='.. contents::\n\n' + description,
+    long_description_content_type='text/x-rst',
     url='http://github.com/vpelletier/pprofile',
     license='GPL 2+',
     platforms=['any'],
