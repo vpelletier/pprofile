@@ -1,6 +1,10 @@
+========
+pprofile
+========
+
 Line-granularity, thread-aware deterministic and statistic pure-python profiler
 
-Inspired from Robert Kern's line_profiler_ .
+Inspired from Robert Kern's line_profiler_.
 
 Usage
 =====
@@ -9,17 +13,17 @@ As a command::
 
   $ pprofile some_python_executable arg1 ...
 
-Once `some_python_executable` returns, prints annotated code of each file
+Once ``some_python_executable`` returns, prints annotated code of each file
 involved in the execution.
 
-As a command, ignoring any files from default `sys.path` (ie, python modules
+As a command, ignoring any files from default ``sys.path`` (ie, python modules
 themselves), for shorter output::
 
   $ pprofile --exclude-syspath some_python_executable arg1 ...
 
-Executing a module, like :code:`python -m`. `--exclude-syspath` is not
+Executing a module, like :code:`python -m`. ``--exclude-syspath`` is not
 recommended in this mode, as it will likely hide what you intend to profile.
-Also, explicitly ending pprofile arguments with `--` will prevent accidentally
+Also, explicitly ending pprofile arguments with ``--`` will prevent accidentally
 stealing command's arguments::
 
   $ pprofile -m some_python_module -- arg1 ...
